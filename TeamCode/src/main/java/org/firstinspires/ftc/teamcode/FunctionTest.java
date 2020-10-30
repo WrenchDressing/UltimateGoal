@@ -217,7 +217,7 @@ public class FunctionTest extends LinearOpMode {
                 telemetry.update();
             }
 
-
+//
     private void WallTargetTrackingBlueGoal () {
       /*
         for (VuforiaTrackable trackable : allTrackables) {
