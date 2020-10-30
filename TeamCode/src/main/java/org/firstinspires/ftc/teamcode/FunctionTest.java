@@ -8,9 +8,11 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.vuforia.TrackableResult;
-
+import com.qualcomm.hardware.lynx.LynxModule;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
 import org.firstinspires.ftc.robotcore.external.matrices.VectorF;
@@ -24,6 +26,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackableDefau
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackables;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaCurrentGame;
@@ -65,10 +68,7 @@ public class FunctionTest extends LinearOpMode {
     private OpenGLMatrix lastLocation = null;
     private VuforiaLocalizer vuforia = null;
     WebcamName webcamName = null;
-    private DcMotor motor_drive_flAsDcMotor;
-    private DcMotor motor_drive_frAsDcMotor;
-    private DcMotor motor_drive_blAsDcMotor;
-    private DcMotor motor_drive_brAsDcMotor;
+    private DcMotorEx motor_drive_flAsDcMotor, motor_drive_blAsDcMotor, motor_drive_brAsDcMotor, motor_drive_frAsDcMotor;
     private BNO055IMU imu;
     private VuforiaCurrentGame vuforiaUltimateGoal;
     Orientation angles;
@@ -76,6 +76,8 @@ public class FunctionTest extends LinearOpMode {
     float CurrentHeading;
     ElapsedTime TimerB;
     double EncoderTicks;
+    double mFr, mFl, mBl, mBr;
+    double CurrentX, CurrentY;
     private boolean targetVisible = false;
     private float phoneXRotate = 0;
     private float phoneYRotate = 0;
@@ -85,10 +87,11 @@ public class FunctionTest extends LinearOpMode {
     @Override
     public void runOpMode() {
         vuforiaUltimateGoal = new VuforiaCurrentGame();
-        motor_drive_flAsDcMotor = hardwareMap.dcMotor.get("motor_drive_flAsDcMotor");
-        motor_drive_frAsDcMotor = hardwareMap.dcMotor.get("motor_drive_frAsDcMotor");
-        motor_drive_blAsDcMotor = hardwareMap.dcMotor.get("motor_drive_blAsDcMotor");
-        motor_drive_brAsDcMotor = hardwareMap.dcMotor.get("motor_drive_brAsDcMotor");
+        motor_drive_flAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_flAsDcMotor");
+        motor_drive_frAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_frAsDcMotor");
+        motor_drive_blAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_blAsDcMotor");
+        motor_drive_brAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_brAsDcMotor");
+        List<LynxModule> allHubs = hardwareMap.getAll(LynxModule.class);
         imu = hardwareMap.get(BNO055IMU.class, "imu");
         Initialization();
         webcamName = hardwareMap.get(WebcamName.class, "Webcam 1");
@@ -159,7 +162,6 @@ public class FunctionTest extends LinearOpMode {
         targetsUltimateGoal.activate();
         if (opModeIsActive()) {
             targetVisible = false;
-
             while (opModeIsActive()) {
                 for (VuforiaTrackable trackable : allTrackables) {
                     if (((VuforiaTrackableDefaultListener) trackable.getListener()).isVisible()) {
@@ -171,29 +173,83 @@ public class FunctionTest extends LinearOpMode {
                         }
                     }
                 }
-             WallTargetTracking();
+                WallTargetTracking();
+                //DistanceSmoothTravel(20, 0.4, 0, 0.025, true, true, 500);
+                // DistanceSmoothTravel(20, 0.4, 0, 0.025, true, true, 500);
+            }
             }
         }
-    }
+
+
+        private void BulkCaching () {
+            mFr = motor_drive_frAsDcMotor.getCurrentPosition();
+            mFl = motor_drive_flAsDcMotor.getCurrentPosition();
+            mBr = motor_drive_brAsDcMotor.getCurrentPosition();
+            mBl = motor_drive_blAsDcMotor.getCurrentPosition();
+
+            angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
+            CurrentHeading = angles.firstAngle;
+            if (targetVisible) {
+                VectorF translation = lastLocation.getTranslation();
+                CurrentY = translation.get(1) / mmPerInch;
+                CurrentX = translation.get(0) / mmPerInch;
+            }
+        }
 
         private void WallTargetTracking () {
+
+                BulkCaching();
                 if (targetVisible) {
+
                     // express position (translation) of robot in inches.
                     VectorF translation = lastLocation.getTranslation();
                     telemetry.addData("Pos (in)", "{X, Y, Z} = %.1f, %.1f, %.1f",
                             translation.get(0) / mmPerInch, translation.get(1) / mmPerInch, translation.get(2) / mmPerInch);
-                    telemetry.addData("value", -0.0002*(translation.get(1)));
-                    MecanumFunction( Math.min(Math.max(-0.0002 * (-10 - translation.get(1)), -1), 1),(Math.min(Math.max(0 * (6.2 - translation.get(0)), -0.5), 0.5)), Math.min(Math.max(0 * (0 - translation.get(2)), -0.2), 0.2));
-
+                    telemetry.addData("Motorvalue", (-0.0375 * 40 - (translation.get(1) / mmPerInch)));
                     // express the rotation of the robot in degrees.
+
                     Orientation rotation = Orientation.getOrientation(lastLocation, EXTRINSIC, XYZ, DEGREES);
                     telemetry.addData("Rot (deg)", "{Roll, Pitch, Heading} = %.0f, %.0f, %.0f", rotation.firstAngle, rotation.secondAngle, rotation.thirdAngle);
+                    MecanumFunction(1 * (-0.0375 * (40 - CurrentY)), (1 * (-0.0375 * (-3 - CurrentX))), 0.0003 * (180 - (180 + rotation.thirdAngle)));
                 } else {
                     telemetry.addData("Visible Target", "none");
                 }
                 telemetry.update();
             }
 
+
+    private void WallTargetTrackingBlueGoal () {
+      /*
+        for (VuforiaTrackable trackable : allTrackables) {
+            if (((VuforiaTrackableDefaultListener)trackable.getListener()).isVisible()) {
+                telemetry.addData("Visible Target", trackable.getName());
+                targetVisible = true;
+
+                // getUpdatedRobotLocation() will return null if no new information is available since
+                // the last time that call was made, or if the trackable is not currently visible.
+                OpenGLMatrix robotLocationTransform = ((VuforiaTrackableDefaultListener)trackable.getListener()).getUpdatedRobotLocation();
+                if (robotLocationTransform != null) {
+                    lastLocation = robotLocationTransform;
+                }
+                break;
+            }
+        }
+        */
+        if (targetVisible) {
+                // express position (translation) of robot in inches.
+                VectorF translation = lastLocation.getTranslation();
+                telemetry.addData("Pos (in)", "{X, Y, Z} = %.1f, %.1f, %.1f",
+                        translation.get(0) / mmPerInch, translation.get(1) / mmPerInch, translation.get(2) / mmPerInch);
+                telemetry.addData("Motorvalue", (-0.0375 * 40 - (translation.get(1) / mmPerInch)));
+                // express the rotation of the robot in degrees.
+                Orientation rotation = Orientation.getOrientation(lastLocation, EXTRINSIC, XYZ, DEGREES);
+                telemetry.addData("Rot (deg)", "{Roll, Pitch, Heading} = %.0f, %.0f, %.0f", rotation.firstAngle, rotation.secondAngle, rotation.thirdAngle);
+                MecanumFunction(1 * (-0.0375 * (41.9 - (translation.get(1) / mmPerInch))), (0 * (-0.0375 * (0 - translation.get(0) / mmPerInch))), 0.000 * (89 - (180 + rotation.thirdAngle)));
+        } else {
+            telemetry.addData("Visible Target", "none");
+        }
+        telemetry.update();
+    }
 
         private void Initialization () {
             BNO055IMU.Parameters imuParameters;
@@ -227,16 +283,46 @@ public class FunctionTest extends LinearOpMode {
         }
 
         private void readCurrentHeading () {
-            angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
-            CurrentHeading = angles.firstAngle;
-        }
-        private void MecanumFunction ( double YL, double XL, double XR){
-            motor_drive_flAsDcMotor.setPower(YL - (XL + XR));
-            motor_drive_blAsDcMotor.setPower(YL - (XL - XR));
-            motor_drive_frAsDcMotor.setPower(YL + XL + XR);
-            motor_drive_brAsDcMotor.setPower(YL + (XL - XR));
         }
 
+        private void MecanumFunction ( double YL, double XL, double XR){
+            motor_drive_flAsDcMotor.setPower(-YL - (XL - XR));
+            motor_drive_blAsDcMotor.setPower(YL - (XL + XR));
+            motor_drive_frAsDcMotor.setPower(-YL + XL - XR);
+            motor_drive_brAsDcMotor.setPower(YL + (XL + XR));
+        }
+    private void IMUTurn(double TrgtAngle) {
+        double AngleToTurn;
+
+        BulkCaching();
+        AngleToTurn = TrgtAngle - CurrentHeading;
+        if (AngleToTurn < 0) {
+            while (TrgtAngle + 6.5 <= CurrentHeading) {
+                BulkCaching();
+                if (isStopRequested()) {
+                    break;
+                }
+                if (TrgtAngle - CurrentHeading < -40) {
+                    MecanumFunction(0, 0, 1);
+                } else if (TrgtAngle - CurrentHeading >= -40) {
+                    MecanumFunction(0, 0, 0.2);
+                }
+            }
+        } else if (AngleToTurn > 0) {
+            while (TrgtAngle - 6.5 >= CurrentHeading) {
+                BulkCaching();
+                if (isStopRequested()) {
+                    break;
+                }
+                if (TrgtAngle - CurrentHeading > 40) {
+                    MecanumFunction(0, 0, -1);
+                } else if (TrgtAngle - CurrentHeading <= 40) {
+                    MecanumFunction(0, 0, -0.2);
+                }
+            }
+        }
+        MecanumFunction(0, 0, 0);
+    }
         private void DistanceSmoothTravel ( double Distance, double Speed, double MaintainAngle,
         double IMUGain, boolean Accel_, boolean Decel_, double DecelDistance){
             ElapsedTime TimerAccel;
@@ -266,15 +352,19 @@ public class FunctionTest extends LinearOpMode {
             if (Distance > 0) {
                 TimerDecel.reset();
                 TimerAccel.reset();
-                while (motor_drive_flAsDcMotor.getCurrentPosition() <= EncoderTicks) {
-                    readCurrentHeading();
-                    if (motor_drive_flAsDcMotor.getCurrentPosition() <= AccelDist && Accel_ == true) {
+                while (mFl >= -EncoderTicks && opModeIsActive()) {
+                    BulkCaching();
+                    telemetry.addData("Loop", 1);
+                    telemetry.addData("Encoder Ticks Target", EncoderTicks);
+                    telemetry.addData("mFl input", mFl);
+                    telemetry.update();
+                    if (mFl <= AccelDist && Accel_ == true) {
                         if (ResetTimerAccel_ == 1) {
                             TimerAccel.reset();
                             ResetTimerAccel_ = 0;
                         }
                         MecanumFunction(Math.min(Math.max(Speed * (TimerAccel.seconds() + 1) * 15, 0.2), Math.abs(Speed)), 0, (-MaintainAngle + CurrentHeading) * IMUGain);
-                    } else if (motor_drive_flAsDcMotor.getCurrentPosition() >= EncoderTicks - DecelDist && Decel_ == true) {
+                    } else if (mFl >= EncoderTicks - DecelDist && Decel_ == true) {
                         if (ResetTimerDecel_ == 1) {
                             TimerDecel.reset();
                             ResetTimerDecel_ = 0;
@@ -294,18 +384,28 @@ public class FunctionTest extends LinearOpMode {
             } else {
                 TimerDecel.reset();
                 TimerAccel.reset();
-                while (motor_drive_flAsDcMotor.getCurrentPosition() >= EncoderTicks) {
-                    readCurrentHeading();
-                    if (motor_drive_flAsDcMotor.getCurrentPosition() >= -AccelDist && Accel_ == true) {
+
+                motor_drive_flAsDcMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+                motor_drive_flAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                mFl = motor_drive_flAsDcMotor.getCurrentPosition();
+                while (mFl <= -EncoderTicks && opModeIsActive()) {
+                    BulkCaching();
+                    telemetry.addData("Encoder Ticks Target", -EncoderTicks);
+                    telemetry.addData("Loop", 2);
+                    telemetry.addData("mFl input", mFl);
+                    telemetry.update();
+                    if (mFl >= -AccelDist && Accel_ == true) {
                         if (ResetTimerAccel_ == 1) {
                             TimerAccel.reset();
                             ResetTimerAccel_ = 0;
                         }
                         MecanumFunction(Math.min(Math.max(-Speed * TimerAccel.seconds() * 1, -Speed), -0.1), 0, (-MaintainAngle + CurrentHeading) * IMUGain);
-                    } else if (motor_drive_flAsDcMotor.getCurrentPosition() <= EncoderTicks + DecelDist && Decel_ == true) {
+                    } else if (mFl <= -EncoderTicks - DecelDist && Decel_ == true) {
                         if (ResetTimerDecel_ == 1) {
                             TimerDecel.reset();
                             ResetTimerDecel_ = 0;
+                        } else if (mFl >= -EncoderTicks){
+                            break;
                         }
                         MecanumFunction(Math.min(Math.max(-Speed * (0.1 / (0.1 + TimerDecel.seconds())), -Speed), -0.1), 0, (-MaintainAngle + CurrentHeading) * IMUGain);
                     } else {
