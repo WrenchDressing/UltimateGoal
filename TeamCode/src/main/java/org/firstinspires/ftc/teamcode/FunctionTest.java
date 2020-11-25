@@ -327,6 +327,16 @@ public class FunctionTest extends LinearOpMode {
     private void readCurrentHeading() {
     }
 
+
+/*
+Liam:
+  The maximum power of each motor in the .setPower method is +/- 1.0.  The way MecanumFunction is implemented below
+  is not 'correct' in that the calculated value could be as much as +/-3.0 which is not correct.  Please figure out an algorithm
+  that will 'scale' the .setPower value to a maximum of 1.0.  This might mean that you will need to adjust the function input
+  values so that the resulting setPower value is a maximum of +/-1.0 but keep the inputs keep the same ratio.
+ */
+
+
     private void MecanumFunction(double YL, double XL, double XR) {
         motor_drive_flAsDcMotor.setPower((-YL - (XL - XR)));
         motor_drive_blAsDcMotor.setPower((YL - (XL + XR)));
