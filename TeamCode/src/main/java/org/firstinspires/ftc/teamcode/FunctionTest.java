@@ -38,6 +38,8 @@ import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocaliz
 - Fix the motor names.  THey are very awkward right now
 - Confirm that WallTracking exits properly
 - Add camera direction function into WallTracking
+- Tune motors
+- Create exact angular adjustment function
  */
 
 @Autonomous(name = "FunctionTest", group = "")
@@ -338,6 +340,11 @@ Liam:
 
 
     private void MecanumFunction(double YL, double XL, double XR) {
+        /*if ((-YL - (XL - XR)) > 1 || (-YL - (XL - XR)) < -1){
+            YL = YL / (YL + XL + XR);
+            XL = XL / (YL + XL + XR);
+            XR = XR / (YL + XL + XR);
+        }*/
         motor_drive_flAsDcMotor.setPower((-YL - (XL - XR)));
         motor_drive_blAsDcMotor.setPower((YL - (XL + XR)));
         motor_drive_frAsDcMotor.setPower((-YL + XL - XR));
