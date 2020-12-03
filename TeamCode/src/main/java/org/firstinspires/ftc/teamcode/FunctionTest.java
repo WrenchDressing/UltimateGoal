@@ -69,6 +69,7 @@ public class FunctionTest extends LinearOpMode {
     double EncoderTicks;
     double mFr, mFl, mBl, mBr;
     double CurrentX, CurrentY;
+    double mXR, mYL, mXL, flScale, frScale, blScale, brScale, YLin, XLin, XRin;
     private boolean targetVisible = false;
     private float phoneXRotate = 0;
     private float phoneYRotate = 0;
@@ -78,6 +79,7 @@ public class FunctionTest extends LinearOpMode {
     double TrueTrackSwitch;
     double IMUTrackSwitch;
     double avgEnc;
+    boolean frOverload, flOverload, blOverload, brOverload;
 
     @Override
     public void runOpMode() {
@@ -340,15 +342,53 @@ Liam:
 
 
     private void MecanumFunction(double YL, double XL, double XR) {
-        /*if ((-YL - (XL - XR)) > 1 || (-YL - (XL - XR)) < -1){
-            YL = YL / (YL + XL + XR);
-            XL = XL / (YL + XL + XR);
-            XR = XR / (YL + XL + XR);
-        }*/
-        motor_drive_flAsDcMotor.setPower((-YL - (XL - XR)));
-        motor_drive_blAsDcMotor.setPower((YL - (XL + XR)));
-        motor_drive_frAsDcMotor.setPower((-YL + XL - XR));
-        motor_drive_brAsDcMotor.setPower((YL + (XL + XR)));
+        YL = YLin;
+        XL = XLin;
+        XR = XRin;
+        flScale = (-YL - (XL - XR));
+        blScale = (YL - (XL + XR));
+        frScale = (-YL + XL - XR);
+        brScale = (YL + XL + XR);
+        if ((-YL - (XL - XR)) > 1 || (-YL - (XL - XR)) < -1) {
+            flOverload = true;
+        } else {
+            flOverload = false;
+        }
+        if ((YL - (XL + XR)) > 1 || (YL - (XL + XR)) < -1) {
+            blOverload = true;
+        } else {
+            blOverload = false;
+        }
+        if ((-YL + XL - XR) > 1 || (-YL + XL - XR) < -1) {
+            frOverload = true;
+        } else {
+            frOverload = false;
+        }
+        if ((YL + (XL + XR)) > 1 || (YL + (XL + XR)) < -1) {
+            brOverload = true;
+        } else {
+            brOverload = false;
+        }
+        if (frOverload == true || flOverload == true || blOverload == true || brOverload == true) {
+            if (flScale > frScale && flScale > brScale && flScale > blScale) {
+                mYL = YL / flScale;
+
+
+            }
+        }
+        if (frOverload == false && flOverload == false && brOverload == false && blOverload == false) {
+            motor_drive_flAsDcMotor.setPower((-YL - (XL - XR)));
+            motor_drive_blAsDcMotor.setPower((YL - (XL + XR)));
+            motor_drive_frAsDcMotor.setPower((-YL + XL - XR));
+            motor_drive_brAsDcMotor.setPower((YL + (XL + XR)));
+        } else {
+            motor_drive_flAsDcMotor.setPower((-mYL - (mXL - mXR)));
+            motor_drive_blAsDcMotor.setPower((mYL - (mXL + mXR)));
+            motor_drive_frAsDcMotor.setPower((-mYL + mXL - mXR));
+            motor_drive_brAsDcMotor.setPower((mYL + (mXL + mXR)));
+        }
+
+
     }
 
     private void IMUTurn(double TrgtAngle) {
