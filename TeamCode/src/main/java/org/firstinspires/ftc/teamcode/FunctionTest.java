@@ -1,4 +1,5 @@
 package org.firstinspires.ftc.teamcode;
+
 import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
@@ -6,6 +7,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
@@ -45,7 +47,9 @@ import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocaliz
 @Autonomous(name = "FunctionTest", group = "")
 
 public class FunctionTest extends LinearOpMode {
-
+    public static final double NEW_P = 2.5;
+    public static final double NEW_I = 0.1;
+    public static final double NEW_D = 0.2;
     private static final String VUFORIA_KEY =
             "Ae2mEyz/////AAABmQBmoTE94ki5quwzTT/OlIIeOueUfjuHL/5k1VNWN943meU2RmiXCJ9eX3rUR/2CkwguvbBU45e1SzrbTAwz3ZzJXc7XN1ObKk/7yPHQeulWpyJgpeZx+EqmZW6VE6yG4mNI1mshKI7vOgOtYxqdR8Yf7YwBPd4Ruy3NVK01BwBl1F8V/ndY26skaSlnWqpibCR3XIvVG0LXHTdNn/ftZyAFmCedLgLi1UtNhr2eXZdr6ioikyRYEe7qsWZPlnwVn5DaQoTcgccZV4bR1/PEvDLn7jn1YNwSimTC8glK+5gnNpO+X7BiZa5LcqtYEpvk/QNQda0Fd+wHQDXA8ojeMUagawtkQGJvpPpz9c6p4fad";
     private static final float mmPerInch = 25.4f;
@@ -83,11 +87,15 @@ public class FunctionTest extends LinearOpMode {
 
     @Override
     public void runOpMode() {
+
+
         // vuforiaUltimateGoal = new VuforiaCurrentGame();
         motor_drive_flAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_flAsDcMotor");
         motor_drive_frAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_frAsDcMotor");
         motor_drive_blAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_blAsDcMotor");
         motor_drive_brAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_brAsDcMotor");
+        PIDFCoefficients pidOrig = motor_drive_flAsDcMotor.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
+
         List<LynxModule> allHubs = hardwareMap.getAll(LynxModule.class);
         imu = hardwareMap.get(BNO055IMU.class, "imu");
         Initialization();
@@ -162,17 +170,13 @@ public class FunctionTest extends LinearOpMode {
         targetVisible = false;
         waitForStart();
         targetsUltimateGoal.activate();
-        DistanceSmoothTravel(20, .15, 0, 0.06, true, true, 1400);
-        IMUTurn(90);
-        DistanceSmoothTravel(15, .3, 90, 0.06, true, true, 1400);
-        sleep(500);
-        DistanceSmoothTravel(-15, .3, 90, 0.06, true, true, 1400);
-        IMUTurn(0);
-        DistanceSmoothTravel(-20, .3, 0, 0.06, true, true, 1400);
 
 
-        //  DistanceSmoothTravel(12, .6, 0, 0.1, true, false, 1400);
-        //  DistanceSmoothTravel(12, .6, 0, 0.1, false, true, 1400);
+
+          DistanceSmoothTravel(12, .6, 0, 0.1, true, true, 1400);
+sleep(5000);
+        DistanceSmoothTravel(12, .6, 0, 0.1, true, false, 1400);
+        sleep(5000);
 
 
         // wallTargetTracking(vuforia, allTrackables, 90, 0, 40.0, 90, 10, 2, 1, 70000, true, 0);
@@ -342,9 +346,6 @@ Liam:
 
 
     private void MecanumFunction(double YL, double XL, double XR) {
-        YL = YLin;
-        XL = XLin;
-        XR = XRin;
         flScale = (-YL - (XL - XR));
         blScale = (YL - (XL + XR));
         frScale = (-YL + XL - XR);
@@ -371,10 +372,26 @@ Liam:
         }
         if (frOverload == true || flOverload == true || blOverload == true || brOverload == true) {
             if (flScale > frScale && flScale > brScale && flScale > blScale) {
-                mYL = YL / flScale;
-
-
+                mYL = YL / Math.abs(flScale);
+                mXL = XL / Math.abs(flScale);
+                mXR = XR / Math.abs(flScale);
             }
+            else if (frScale > flScale && frScale > brScale && frScale > blScale) {
+                mYL = YL / Math.abs(frScale);
+                mXL = XL / Math.abs(frScale);
+                mXR = XR / Math.abs(frScale);
+            }
+            else if (blScale > frScale && blScale > brScale && blScale > flScale) {
+                mYL = YL / Math.abs(blScale);
+                mXL = XL / Math.abs(blScale);
+                mXR = XR / Math.abs(blScale);
+            }
+            else if (brScale > frScale && brScale > flScale && brScale > blScale) {
+                mYL = YL / Math.abs(brScale);
+                mXL = XL / Math.abs(brScale);
+                mXR = XR / Math.abs(brScale);
+            }
+
         }
         if (frOverload == false && flOverload == false && brOverload == false && blOverload == false) {
             motor_drive_flAsDcMotor.setPower((-YL - (XL - XR)));
@@ -521,11 +538,22 @@ Liam:
             }
             TimerAccel.reset();
             TimerDecel.reset();
-            motor_drive_flAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            motor_drive_frAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            motor_drive_blAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            motor_drive_brAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            MecanumFunction(0, 0, 0);
+            if (Decel_ == true) {
+                motor_drive_flAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                motor_drive_frAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                motor_drive_blAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                motor_drive_brAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                MecanumFunction(0, 0, 0);
+
+            }
+            else {
+                motor_drive_flAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+                motor_drive_frAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+                motor_drive_blAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+                motor_drive_brAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
+            }
+
         }
     }
 }
