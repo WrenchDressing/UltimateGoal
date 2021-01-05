@@ -1,3 +1,4 @@
+//test
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.hardware.bosch.BNO055IMU;
@@ -388,18 +389,15 @@ Liam:
                 mYL = YL / Math.abs(flScale);
                 mXL = XL / Math.abs(flScale);
                 mXR = XR / Math.abs(flScale);
-            }
-            else if (frScale > flScale && frScale > brScale && frScale > blScale) {
+            } else if (frScale > flScale && frScale > brScale && frScale > blScale) {
                 mYL = YL / Math.abs(frScale);
                 mXL = XL / Math.abs(frScale);
                 mXR = XR / Math.abs(frScale);
-            }
-            else if (blScale > frScale && blScale > brScale && blScale > flScale) {
+            } else if (blScale > frScale && blScale > brScale && blScale > flScale) {
                 mYL = YL / Math.abs(blScale);
                 mXL = XL / Math.abs(blScale);
                 mXR = XR / Math.abs(blScale);
-            }
-            else if (brScale > frScale && brScale > flScale && brScale > blScale) {
+            } else if (brScale > frScale && brScale > flScale && brScale > blScale) {
                 mYL = YL / Math.abs(brScale);
                 mXL = XL / Math.abs(brScale);
                 mXR = XR / Math.abs(brScale);
@@ -585,8 +583,7 @@ Liam:
                 motor_drive_brAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 MecanumFunction(0, 0, 0);
 
-            }
-            else {
+            } else {
                 motor_drive_flAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
                 motor_drive_frAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
                 motor_drive_blAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
