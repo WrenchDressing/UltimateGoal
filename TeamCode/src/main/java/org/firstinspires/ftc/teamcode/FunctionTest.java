@@ -41,15 +41,17 @@ import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocaliz
 - Confirm that WallTracking exits properly
 - Add camera direction function into WallTracking
 - Tune motors
+    -Backright motor not tuned correctly. Wall tracking program bugging out. Not getting to desired location, but does exit the loop when robot is manually guided to Target Position. 
 - Create exact angular adjustment function
  */
 
 @Autonomous(name = "FunctionTest", group = "")
 
 public class FunctionTest extends LinearOpMode {
-    public static final double NEW_P = 2.5;
-    public static final double NEW_I = 0.1;
-    public static final double NEW_D = 0.2;
+    public static final double NEW_P = 30;
+    public static final double NEW_I = 17;
+    public static final double NEW_D = 0;
+    public static final double NEW_F = 0;
     private static final String VUFORIA_KEY =
             "Ae2mEyz/////AAABmQBmoTE94ki5quwzTT/OlIIeOueUfjuHL/5k1VNWN943meU2RmiXCJ9eX3rUR/2CkwguvbBU45e1SzrbTAwz3ZzJXc7XN1ObKk/7yPHQeulWpyJgpeZx+EqmZW6VE6yG4mNI1mshKI7vOgOtYxqdR8Yf7YwBPd4Ruy3NVK01BwBl1F8V/ndY26skaSlnWqpibCR3XIvVG0LXHTdNn/ftZyAFmCedLgLi1UtNhr2eXZdr6ioikyRYEe7qsWZPlnwVn5DaQoTcgccZV4bR1/PEvDLn7jn1YNwSimTC8glK+5gnNpO+X7BiZa5LcqtYEpvk/QNQda0Fd+wHQDXA8ojeMUagawtkQGJvpPpz9c6p4fad";
     private static final float mmPerInch = 25.4f;
@@ -171,15 +173,17 @@ public class FunctionTest extends LinearOpMode {
         waitForStart();
         targetsUltimateGoal.activate();
 
-
-
+//AngleAdjustment(5);
+//AngleAdjustment(-10);
+/*
           DistanceSmoothTravel(12, .6, 0, 0.1, true, true, 1400);
 sleep(5000);
         DistanceSmoothTravel(12, .6, 0, 0.1, true, false, 1400);
         sleep(5000);
+        */
 
 
-        // wallTargetTracking(vuforia, allTrackables, 90, 0, 40.0, 90, 10, 2, 1, 70000, true, 0);
+        wallTargetTracking(vuforia, allTrackables, 90, -3, 40.0, 0, 10, 2, 1, 70000, false, 5);
     }
 
 
@@ -223,14 +227,17 @@ sleep(5000);
         ElapsedTime exitTimer = new ElapsedTime();
         exitTimer.reset();
         LastVal = CurrentVal = 175;
-        while (!exitFlag && (exitTimer.time() <= timeOut)) {
+        //   (!exitFlag && (exitTimer.time() <= timeOut)) ||
+        while ((!(40 - CurrentY <= 1 && 40 - CurrentY >= -1 && -3 - CurrentX <= 1 && -3 - CurrentX >= -1))) {
             if (isStopRequested()) {
                 break;
             }
             BulkCaching();
             // express the rotation of the robot in degrees.
             // check all the trackable targets to see which one (if any) is visible.
-
+            telemetry.addData("YOffset", 40 - CurrentY);
+            telemetry.addData("XOffset", -3 - CurrentX);
+            telemetry.update();
             for (VuforiaTrackable trackable : allTrackables) {
                 if (((VuforiaTrackableDefaultListener) trackable.getListener()).isVisible()) {
                     targetVisible = true;
@@ -256,12 +263,12 @@ sleep(5000);
                 angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
                 CurrentHeading = angles.firstAngle;
 
-                telemetry.addData("Pos (in)", "{X, Y, Z} = %.1f, %.1f, %.1f",
-                        translation.get(0) / mmPerInch, translation.get(1) / mmPerInch, translation.get(2) / mmPerInch);
+                //telemetry.addData("Pos (in)", "{X, Y, Z} = %.1f, %.1f, %.1f",
+                //        translation.get(0) / mmPerInch, translation.get(1) / mmPerInch, translation.get(2) / mmPerInch);
 
                 // express the rotation of the robot in degrees.
                 Orientation rotation = Orientation.getOrientation(lastLocation, EXTRINSIC, XYZ, DEGREES);
-                telemetry.addData("Rot (deg)", "{Roll, Pitch, Heading} = %.0f, %.0f, %.0f", rotation.firstAngle, rotation.secondAngle, rotation.thirdAngle);
+                //telemetry.addData("Rot (deg)", "{Roll, Pitch, Heading} = %.0f, %.0f, %.0f", rotation.firstAngle, rotation.secondAngle, rotation.thirdAngle);
 
                 CurrentVal = rotation.thirdAngle;
 /*                        //                   telemetry.addData("Rot (deg)", "{Roll, Pitch, Heading} = %.0f, %.0f, %.0f", rotation.firstAngle, rotation.secondAngle, rotation.thirdAngle);
@@ -282,7 +289,7 @@ sleep(5000);
 
 //                        Heading = (180 + (180 - rotation.thirdAngle));
                 if (camDir == 90) {
-                    MecanumFunction(1 * (-0.045 * (xTarget - CurrentX)), (1 * (0.06 * (yTarget - CurrentY))), TrueTrackSwitch * (-0.0075 * (yawTarget - (CurrentVal))) + (0.0 * IMUTrackSwitch * -0.0075 * (-TargetAngle + CurrentHeading)));
+                    MecanumFunction(1 * (-0.004 * (xTarget - CurrentX)), (1 * (0.018 * (yTarget - CurrentY))), TrueTrackSwitch * (-0.0075 * (yawTarget - (CurrentVal))) + (-1 * IMUTrackSwitch * -0.01 * (-TargetAngle + CurrentHeading)));
                 }
                 //else if (camDir == 90){
                 //    MecanumFunction(0 * (-0.02 * (40 - CurrentX)), (0 * (-0.02 * (-3 - CurrentY))), TrueTrackSwitch * (0.0008 * (yawTarget - (180 + Zrot) + (IMUTrackSwitch * 0.0008 * (-TargetAngle + CurrentHeading)))));
@@ -330,6 +337,12 @@ sleep(5000);
         motor_drive_frAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motor_drive_blAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motor_drive_brAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        PIDFCoefficients pidNew = new PIDFCoefficients(NEW_P, NEW_I, NEW_D, NEW_F);
+        PIDFCoefficients brpidNew = new PIDFCoefficients(35, 25, 0, 0);
+        motor_drive_flAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
+        motor_drive_frAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
+        motor_drive_blAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
+        motor_drive_brAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, brpidNew);
     }
 
     private void readCurrentHeading() {
@@ -436,6 +449,33 @@ Liam:
                 } else if (TrgtAngle - CurrentHeading <= 40) {
                     MecanumFunction(0, 0, -0.2);
                 }
+            }
+        }
+        MecanumFunction(0, 0, 0);
+    }
+
+    private void AngleAdjustment(double DegreeChange) {
+        double AngleToTurn;
+        double CurrentAngularPosition;
+        BulkCaching();
+        CurrentAngularPosition = CurrentHeading;
+        AngleToTurn = DegreeChange - CurrentAngularPosition;
+        if (AngleToTurn < 0) {
+            while (CurrentAngularPosition + DegreeChange < CurrentHeading) {
+                BulkCaching();
+                if (isStopRequested()) {
+                    break;
+                }
+                MecanumFunction(0, 0, 0.2);
+            }
+        } else if (AngleToTurn > 0) {
+            while (CurrentAngularPosition + DegreeChange > CurrentHeading) {
+                BulkCaching();
+                if (isStopRequested()) {
+                    break;
+                }
+
+                MecanumFunction(0, 0, -0.2);
             }
         }
         MecanumFunction(0, 0, 0);
