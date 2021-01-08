@@ -25,6 +25,8 @@ import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackable;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackableDefaultListener;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackables;
+import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
+import org.firstinspires.ftc.robotcore.external.tfod.TFObjectDetector;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,6 +51,9 @@ import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocaliz
 @Autonomous(name = "FunctionTest", group = "")
 
 public class FunctionTest extends LinearOpMode {
+    private static final String TFOD_MODEL_ASSET = "UltimateGoal.tflite";
+    private static final String LABEL_FIRST_ELEMENT = "Quad";
+    private static final String LABEL_SECOND_ELEMENT = "Single";
     public static final double NEW_P = 30;
     public static final double NEW_I = 17;
     public static final double NEW_D = 0;
@@ -56,23 +61,28 @@ public class FunctionTest extends LinearOpMode {
     private static final String VUFORIA_KEY =
             "Ae2mEyz/////AAABmQBmoTE94ki5quwzTT/OlIIeOueUfjuHL/5k1VNWN943meU2RmiXCJ9eX3rUR/2CkwguvbBU45e1SzrbTAwz3ZzJXc7XN1ObKk/7yPHQeulWpyJgpeZx+EqmZW6VE6yG4mNI1mshKI7vOgOtYxqdR8Yf7YwBPd4Ruy3NVK01BwBl1F8V/ndY26skaSlnWqpibCR3XIvVG0LXHTdNn/ftZyAFmCedLgLi1UtNhr2eXZdr6ioikyRYEe7qsWZPlnwVn5DaQoTcgccZV4bR1/PEvDLn7jn1YNwSimTC8glK+5gnNpO+X7BiZa5LcqtYEpvk/QNQda0Fd+wHQDXA8ojeMUagawtkQGJvpPpz9c6p4fad";
     private static final float mmPerInch = 25.4f;
+    private TFObjectDetector tfod;
     private static final float mmTargetHeight = (6) * mmPerInch;
     private static final VuforiaLocalizer.CameraDirection CAMERA_CHOICE = BACK;
     private static final boolean PHONE_IS_PORTRAIT = false;
     private static final float halfField = 72 * mmPerInch;
     private static final float quadField = 36 * mmPerInch;
     private OpenGLMatrix lastLocation = null;
-    private VuforiaLocalizer vuforia = null;
+    private VuforiaLocalizer vuforia;
     WebcamName webcamName = null;
     private DcMotorEx motor_drive_flAsDcMotor, motor_drive_blAsDcMotor, motor_drive_brAsDcMotor, motor_drive_frAsDcMotor;
     private BNO055IMU imu;
     private VuforiaCurrentGame vuforiaUltimateGoal;
     Orientation angles;
     ElapsedTime TimerA;
+    ElapsedTime TimerC;
     float CurrentHeading;
     ElapsedTime TimerB;
     double CurrentVal;
     double LastVal;
+    double QuadRun;
+    double OneRun;
+    double NoneRun;
     double EncoderTicks;
     double mFr, mFl, mBl, mBr;
     double CurrentX, CurrentY;
@@ -102,11 +112,12 @@ public class FunctionTest extends LinearOpMode {
         List<LynxModule> allHubs = hardwareMap.getAll(LynxModule.class);
         imu = hardwareMap.get(BNO055IMU.class, "imu");
         Initialization();
-        webcamName = hardwareMap.get(WebcamName.class, "Webcam 1");
+
+
         int cameraMonitorViewId = hardwareMap.appContext.getResources().getIdentifier("cameraMonitorViewId", "id", hardwareMap.appContext.getPackageName());
         VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters(cameraMonitorViewId);
         parameters.vuforiaLicenseKey = VUFORIA_KEY;
-        parameters.cameraName = webcamName;
+        parameters.cameraName = hardwareMap.get(WebcamName.class, "Webcam 1");
         parameters.useExtendedTracking = false;
         vuforia = ClassFactory.getInstance().createVuforia(parameters);
         // Activate here for camera preview.
@@ -170,9 +181,15 @@ public class FunctionTest extends LinearOpMode {
 //            ((VuforiaTrackableDefaultListener) trackable.getListener()).setPhoneInformation(robotFromCamera, parameters.cameraDirection);
             ((VuforiaTrackableDefaultListener) trackable.getListener()).setCameraLocationOnRobot(webcamName, robotFromCamera);
         }
+
+        parameters.cameraName = hardwareMap.get(WebcamName.class, "Webcam 1");
+
         targetVisible = false;
+        if (tfod != null) {
+            tfod.activate();
+        }
         waitForStart();
-        targetsUltimateGoal.activate();
+        //targetsUltimateGoal.activate();
 
 //AngleAdjustment(5);
 //AngleAdjustment(-10);
@@ -183,8 +200,17 @@ sleep(5000);
         sleep(5000);
         */
 
+        ringScan();
+        if (QuadRun == 1) {
+            IMUTurn(-90);
 
-        wallTargetTracking(vuforia, allTrackables, 90, -3, 40.0, 0, 10, 2, 1, 70000, false, 5);
+        } else if (OneRun == 1) {
+            IMUTurn(90);
+        } else if (NoneRun == 1) {
+            DistanceSmoothTravel(4, .6, 0, 0.1, true, true, 1400);
+        }
+
+        // wallTargetTracking(vuforia, allTrackables, 90, -3, 40.0, 0, 10, 2, 1, 70000, false, 5);
     }
 
 
@@ -311,16 +337,21 @@ sleep(5000);
 
     private void Initialization() {
         BNO055IMU.Parameters imuParameters;
+
         Acceleration gravity;
         imuParameters = new BNO055IMU.Parameters();
         TimerA = new ElapsedTime(ElapsedTime.Resolution.SECONDS);
         TimerB = new ElapsedTime(ElapsedTime.Resolution.SECONDS);
+        TimerC = new ElapsedTime(ElapsedTime.Resolution.SECONDS);
         imuParameters.angleUnit = BNO055IMU.AngleUnit.DEGREES;
         imuParameters.accelUnit = BNO055IMU.AccelUnit.METERS_PERSEC_PERSEC;
         imuParameters.loggingEnabled = false;
         imu.initialize(imuParameters);
         angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
         gravity = imu.getGravity();
+        webcamName = hardwareMap.get(WebcamName.class, "Webcam 1");
+        VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters();
+        parameters.vuforiaLicenseKey = VUFORIA_KEY;
         CurrentHeading = angles.firstAngle;
         motor_drive_brAsDcMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         motor_drive_frAsDcMotor.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -344,11 +375,67 @@ sleep(5000);
         motor_drive_frAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
         motor_drive_blAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
         motor_drive_brAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, brpidNew);
+        initTfod();
+        //webcamName = hardwareMap.get(WebcamName.class, "Webcam 1");
+    }
+
+    private void ringScan() {
+        QuadRun = 0;
+        OneRun = 0;
+        NoneRun = 0;
+        TimerC = new ElapsedTime();
+        TimerC.reset();
+        while ((TimerC.seconds() < 5)) {
+            if (tfod != null) {
+                // getUpdatedRecognitions() will return null if no new information is available since
+                // the last time that call was made.
+                List<Recognition> updatedRecognitions = tfod.getUpdatedRecognitions();
+                if (updatedRecognitions != null) {
+
+                    telemetry.addData("# Object Detected", updatedRecognitions.size());
+                    // step through the list of recognitions and display boundary info.
+                    int i = 0;
+                    for (Recognition recognition : updatedRecognitions) {
+                        if (recognition.getLabel() == "Quad") {
+                            QuadRun = 1;
+                            break;
+                        }
+                        if (recognition.getLabel() == "Single") {
+                            OneRun = 1;
+                            break;
+                        }
+                        telemetry.addData(String.format("label (%d)", i), recognition.getLabel());
+                        telemetry.addData(String.format("  left,top (%d)", i), "%.03f , %.03f",
+                                recognition.getLeft(), recognition.getTop());
+                        telemetry.addData(String.format("  right,bottom (%d)", i), "%.03f , %.03f",
+                                recognition.getRight(), recognition.getBottom());
+                    }
+                    telemetry.update();
+
+                }
+            }
+
+        }
+        if (tfod != null) {
+            tfod.shutdown();
+            if (QuadRun == 0 && OneRun == 0) {
+                NoneRun = 1;
+            }
+
+        }
     }
 
     private void readCurrentHeading() {
     }
 
+    private void initTfod() {
+        int tfodMonitorViewId = hardwareMap.appContext.getResources().getIdentifier(
+                "tfodMonitorViewId", "id", hardwareMap.appContext.getPackageName());
+        TFObjectDetector.Parameters tfodParameters = new TFObjectDetector.Parameters(tfodMonitorViewId);
+        tfodParameters.minResultConfidence = 0.8f;
+        tfod = ClassFactory.getInstance().createTFObjectDetector(tfodParameters, vuforia);
+        tfod.loadModelFromAsset(TFOD_MODEL_ASSET, LABEL_FIRST_ELEMENT, LABEL_SECOND_ELEMENT);
+    }
 
 /*
 Liam:
