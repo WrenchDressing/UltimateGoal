@@ -88,6 +88,12 @@ public class FunctionTest extends LinearOpMode {
     double avgEnc;
     boolean frOverload, flOverload, blOverload, brOverload;
 
+    private State CurrentState;
+    private enum State {
+        STATE_HALFWAY,
+        STATE_FINISH,
+    }
+
     @Override
     public void runOpMode() {
 
@@ -185,8 +191,26 @@ sleep(5000);
 
 
         wallTargetTracking(vuforia, allTrackables, 90, -3, 40.0, 0, 10, 2, 1, 70000, false, 5);
-    }
 
+     switch (CurrentState) {
+         case STATE_HALFWAY:
+             if () { //enconder ticks=halfway through track
+                 //code to lower arm
+            }
+             else if () { // encoder ticks=end of track
+                 CurrentState = State.STATE_FINISH;
+             }
+             break;
+
+         case STATE_FINISH:
+             if () { //encoder ticks=end of track
+                //code to open grabber
+             }
+             else if () { //encoder ticks=halfway throough track
+                 CurrentState = State.STATE_FINISH;
+             }
+             break;
+        }
 
     private void BulkCaching() {
         mFr = motor_drive_frAsDcMotor.getCurrentPosition();
