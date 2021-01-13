@@ -19,7 +19,8 @@ public class TestTeleopAS extends LinearOpMode {
     private DcMotor motor_drive_brAsDcMotor;
     private DcMotor clarm;
     private Servo claw;
-    boolean c = true;
+    boolean gamepadaAfter = false;
+    boolean gamepadbAfter = false;
 
     @Override
     public void runOpMode() {
@@ -49,28 +50,24 @@ public class TestTeleopAS extends LinearOpMode {
         motor_drive_frAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motor_drive_blAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motor_drive_brAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        telemetry.update();
+        waitForStart();
 
         waitForStart();
         while (opModeIsActive()) {
-            if (!gamepad1.a && gamepad1.b) {
-                c = true;
-            }
-            if (!gamepad1.b && gamepad1.a) {
-                c = false;
-            }
             motor_drive_flAsDcMotor.setPower(-gamepad1.left_stick_y - (-gamepad1.left_stick_x - gamepad1.right_stick_x));
             motor_drive_blAsDcMotor.setPower(gamepad1.left_stick_y - (-gamepad1.left_stick_x + gamepad1.right_stick_x));
             motor_drive_frAsDcMotor.setPower(-gamepad1.left_stick_y + (-gamepad1.left_stick_x - gamepad1.right_stick_x));
             motor_drive_brAsDcMotor.setPower(gamepad1.left_stick_y + (-gamepad1.left_stick_x + gamepad1.right_stick_x));
 
-            if (c == true) ;
-            {
+            if (!gamepad1.a && gamepadaAfter) {
                 claw.setPosition(.17);
             }
-            if (c == false) ;
-            {
+            if (!gamepad1.b && gamepadbAfter) {
                 claw.setPosition(.5);
             }
+            gamepadaAfter = gamepad1.a;
+            gamepadbAfter = gamepad1.b;
 
 
         }
