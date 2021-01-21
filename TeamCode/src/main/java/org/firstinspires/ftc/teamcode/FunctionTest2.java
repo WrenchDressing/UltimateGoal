@@ -1,14 +1,15 @@
-//test 10
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
@@ -44,21 +45,25 @@ import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocaliz
 - Confirm that WallTracking exits properly
 - Add camera direction function into WallTracking
 - Tune motors
-    -Backright motor not tuned correctly. Wall tracking program bugging out. Not getting to desired location, but does exit the loop when robot is manually guided to Target Position. 
+    -Backright motor not tuned correctly. Wall tracking program bugging out. Not getting to desired location, but does exit the loop when robot is manually guided to Target Position.
 - Create exact angular adjustment function
  */
 
-@Autonomous(name = "FunctionTest", group = "")
+@Autonomous(name = "FunctionTest2", group = "")
 
-public class FunctionTest extends LinearOpMode {
+public class FunctionTest2 extends LinearOpMode {
     private static final String TFOD_MODEL_ASSET = "UltimateGoal.tflite";
     private static final String LABEL_FIRST_ELEMENT = "Quad";
     private static final String LABEL_SECOND_ELEMENT = "Single";
-
-    public static final double NEW_P = 30;
-    public static final double NEW_I = 17;
+    private DcMotor RightLauncher;
+    private DcMotor LeftLauncher;
+    private CRServo Conveyor;
+    public static final double NEW_P = 25;
+    public static final double NEW_I = 18;
     public static final double NEW_D = 0;
     public static final double NEW_F = 0;
+    private DcMotor clarm;
+    private Servo claw;
     private static final String VUFORIA_KEY =
             "Ae2mEyz/////AAABmQBmoTE94ki5quwzTT/OlIIeOueUfjuHL/5k1VNWN943meU2RmiXCJ9eX3rUR/2CkwguvbBU45e1SzrbTAwz3ZzJXc7XN1ObKk/7yPHQeulWpyJgpeZx+EqmZW6VE6yG4mNI1mshKI7vOgOtYxqdR8Yf7YwBPd4Ruy3NVK01BwBl1F8V/ndY26skaSlnWqpibCR3XIvVG0LXHTdNn/ftZyAFmCedLgLi1UtNhr2eXZdr6ioikyRYEe7qsWZPlnwVn5DaQoTcgccZV4bR1/PEvDLn7jn1YNwSimTC8glK+5gnNpO+X7BiZa5LcqtYEpvk/QNQda0Fd+wHQDXA8ojeMUagawtkQGJvpPpz9c6p4fad";
     private static final float mmPerInch = 25.4f;
@@ -98,6 +103,7 @@ public class FunctionTest extends LinearOpMode {
     double IMUTrackSwitch;
     double avgEnc;
     boolean frOverload, flOverload, blOverload, brOverload;
+    private Servo camServo;
 
     @Override
     public void runOpMode() {
@@ -108,13 +114,16 @@ public class FunctionTest extends LinearOpMode {
         motor_drive_frAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_frAsDcMotor");
         motor_drive_blAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_blAsDcMotor");
         motor_drive_brAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_brAsDcMotor");
-
+        RightLauncher = hardwareMap.get(DcMotor.class, "RightLauncher");
+        LeftLauncher = hardwareMap.get(DcMotor.class, "LeftLauncher");
+        Conveyor = hardwareMap.get(CRServo.class, "Conveyor");
+        clarm = hardwareMap.get(DcMotor.class, "clarm");
+        claw = hardwareMap.get(Servo.class, "claw");
         PIDFCoefficients pidOrig = motor_drive_flAsDcMotor.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
 
         List<LynxModule> allHubs = hardwareMap.getAll(LynxModule.class);
         imu = hardwareMap.get(BNO055IMU.class, "imu");
         Initialization();
-
 
         // Activate here for camera preview.
         telemetry.addData(">>", "Vuforia initialized, press start to continue...");
@@ -164,9 +173,9 @@ public class FunctionTest extends LinearOpMode {
 
         // Next, translate the camera lens to where it is on the robot.
         // In this example, it is centered (left to right), but forward of the middle of the robot, and above ground level.
-        final float CAMERA_FORWARD_DISPLACEMENT = 4.0f * mmPerInch;   // eg: Camera is 4 Inches in front of robot-center
-        final float CAMERA_VERTICAL_DISPLACEMENT = 8.0f * mmPerInch;   // eg: Camera is 8 Inches above ground
-        final float CAMERA_LEFT_DISPLACEMENT = 0;     // eg: Camera is ON the robot's center line
+        final float CAMERA_FORWARD_DISPLACEMENT = 0.0f * mmPerInch;   // eg: Camera is 4 Inches in front of robot-center
+        final float CAMERA_VERTICAL_DISPLACEMENT = 5.0f * mmPerInch;   // eg: Camera is 8 Inches above ground
+        final float CAMERA_LEFT_DISPLACEMENT = 9.0f;     // eg: Camera is ON the robot's center line
         OpenGLMatrix robotFromCamera = OpenGLMatrix
                 .translation(CAMERA_FORWARD_DISPLACEMENT, CAMERA_LEFT_DISPLACEMENT, CAMERA_VERTICAL_DISPLACEMENT)
 //                .multiplied(Orientation.getRotationMatrix(EXTRINSIC, YZX, DEGREES, phoneYRotate, phoneZRotate, phoneXRotate));
@@ -181,26 +190,73 @@ public class FunctionTest extends LinearOpMode {
             tfod.activate();
         }
         waitForStart();
-        //targetsUltimateGoal.activate();
+        targetsUltimateGoal.activate();
+        /*IMUTurn(-15);
+        Shoot(-0.35,0.75,1.25,false);
+        IMUTurn(-10);
+        Shoot(-0.35,0.75,1.25,false);
+        IMUTurn(-5);
+        Shoot(-0.35,0.75,1.25,true);
+*/
 
-//AngleAdjustment(5);
-//AngleAdjustment(-10);
-/*
-          DistanceSmoothTravel(12, .6, 0, 0.1, true, true, 1400);
-sleep(5000);
-        DistanceSmoothTravel(12, .6, 0, 0.1, true, false, 1400);
-        sleep(5000);
-        */
+        //DistanceSmoothTravel(30, .4, 0, 0.025, true, true, 1400);
+        //DistanceSmoothTravel(-30, .4, 0, 0.025, true, true, 1400);
+
+
+        camServo.setPosition(0.75);
+        DistanceSmoothTravel(24, .4, 0, 0.025, true, true, 1400);
         ringScan();
+        camServo.setPosition(.5);
+        DistanceSmoothTravel(40, .4, 0, 0.025, true, true, 2400);
+        IMUTurn(12.5);
+        Shoot(-0.38, 0.775, 5, true);
+        //    wallTargetTracking(vuforia, allTrackables, 90, 1.9, 18.1, 0, 10, 2, 1, 70000, false, 0);
+        MecanumFunction(0, 0, 0);
         if (QuadRun == 1) {
-
+            IMUTurn(90);
         } else if (OneRun == 1) {
+            DistanceSmoothTravel(10, .4, 12.5, 0.025, true, true, 1400);
+            IMUTurn(90);
+            DistanceSmoothTravel(16, .4, 90, 0.025, true, true, 1400);
+            clarm.setTargetPosition(1000);
+            clarm.setPower(0.6);
+            sleep(750);
+            claw.setPosition(0.35);
+            sleep(750);
+            clarm.setTargetPosition(-5);
+            clarm.setPower(-0.6);
+            sleep(750);
+            IMUTurn(20);
+            wallTargetTracking(vuforia, allTrackables, 90, 0, 58, 0, 10, 2, 1, 3, false, 0);
+            DistanceSmoothTravel(-17, .4, 0, 0.025, true, true, 1400);
+            IMUTurn(-60);
+            clarm.setTargetPosition(1000);
+            clarm.setPower(0.25);
+            claw.setPosition(0);
+            sleep(850);
+            clarm.setTargetPosition(-5);
+            clarm.setPower(-0.7);
+            sleep(750);
+            IMUTurn(0);
+            DistanceSmoothTravel(68, .4, 7, 0.025, true, true, 1400);
+            clarm.setTargetPosition(1000);
+            clarm.setPower(0.7);
+            sleep(850);
+            claw.setPosition(0.35);
+            sleep(750);
+            clarm.setTargetPosition(-5);
+            clarm.setPower(-0.7);
+            sleep(750);
+            DistanceSmoothTravel(-24, .4, 0, 0.025, true, true, 1400);
+
 
         } else if (NoneRun == 1) {
+            IMUTurn(-90);
             //DistanceSmoothTravel(4, .6, 0, 0.1, true, true, 1400);
         }
+
+
         //  targetsUltimateGoal.activate();
-        // wallTargetTracking(vuforia, allTrackables, 90, -3, 40, 0, 10, 2, 1, 70000, false, 0);
 
 
         // wallTargetTracking(vuforia, allTrackables, 90, -3, 40.0, 0, 10, 2, 1, 70000, false, 5);
@@ -248,15 +304,15 @@ sleep(5000);
         exitTimer.reset();
         LastVal = CurrentVal = 175;
         //   (!exitFlag && (exitTimer.time() <= timeOut)) ||
-        while ((!(40 - CurrentY <= 1 && 40 - CurrentY >= -1 && -3 - CurrentX <= 1 && -3 - CurrentX >= -1))) {
+        while ((!(yTarget - CurrentY <= 1 && yTarget - CurrentY >= -1 && xTarget - CurrentX <= 1 && xTarget - CurrentX >= -1))) {
             if (isStopRequested()) {
                 break;
             }
             BulkCaching();
             // express the rotation of the robot in degrees.
             // check all the trackable targets to see which one (if any) is visible.
-            telemetry.addData("YOffset", 40 - CurrentY);
-            telemetry.addData("XOffset", -3 - CurrentX);
+            telemetry.addData("YOffset", 18.1 - CurrentY);
+            telemetry.addData("XOffset", 1.9 - CurrentX);
             telemetry.update();
             for (VuforiaTrackable trackable : allTrackables) {
                 if (((VuforiaTrackableDefaultListener) trackable.getListener()).isVisible()) {
@@ -309,7 +365,7 @@ sleep(5000);
 
 //                        Heading = (180 + (180 - rotation.thirdAngle));
                 if (camDir == 90) {
-                    MecanumFunction(1 * (-0.004 * (xTarget - CurrentX)), (1 * (0.018 * (yTarget - CurrentY))), TrueTrackSwitch * (-0.0075 * (yawTarget - (CurrentVal))) + (-1 * IMUTrackSwitch * -0.01 * (-TargetAngle + CurrentHeading)));
+                    MecanumFunction(1 * (-0.01 * (xTarget - CurrentX)), (-1 * (0.018 * (yTarget - CurrentY))), TrueTrackSwitch * (-0.0075 * (yawTarget - (CurrentVal))) + (-1 * IMUTrackSwitch * -0.01 * (-TargetAngle + CurrentHeading)));
                 }
                 //else if (camDir == 90){
                 //    MecanumFunction(0 * (-0.02 * (40 - CurrentX)), (0 * (-0.02 * (-3 - CurrentY))), TrueTrackSwitch * (0.0008 * (yawTarget - (180 + Zrot) + (IMUTrackSwitch * 0.0008 * (-TargetAngle + CurrentHeading)))));
@@ -358,9 +414,10 @@ sleep(5000);
         tfod.loadModelFromAsset(TFOD_MODEL_ASSET, LABEL_FIRST_ELEMENT, LABEL_SECOND_ELEMENT);
 
         // webcamName = hardwareMap.get(WebcamName.class, "Webcam 1");
-
+        clarm.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        clarm.setTargetPosition(0);
+        clarm.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         CurrentHeading = angles.firstAngle;
-
         motor_drive_brAsDcMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         motor_drive_frAsDcMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         motor_drive_blAsDcMotor.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -373,6 +430,10 @@ sleep(5000);
         motor_drive_frAsDcMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         motor_drive_blAsDcMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         motor_drive_brAsDcMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        RightLauncher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        LeftLauncher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        RightLauncher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        LeftLauncher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motor_drive_flAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motor_drive_frAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motor_drive_blAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -382,7 +443,7 @@ sleep(5000);
         motor_drive_flAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
         motor_drive_frAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
         motor_drive_blAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
-        motor_drive_brAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, brpidNew);
+        motor_drive_brAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
         VuforiaTrackables targetsUltimateGoal = this.vuforia.loadTrackablesFromAsset("UltimateGoal");
         VuforiaTrackable blueTowerGoalTarget = targetsUltimateGoal.get(0);
         blueTowerGoalTarget.setName("Blue Tower Goal Target");
@@ -396,6 +457,7 @@ sleep(5000);
         frontWallTarget.setName("Front Wall Target");
         List<VuforiaTrackable> allTrackables = new ArrayList<VuforiaTrackable>();
         allTrackables.addAll(targetsUltimateGoal);
+        camServo = hardwareMap.get(Servo.class, "camServo");
 
 
         redAllianceTarget.setLocation(OpenGLMatrix
@@ -452,7 +514,7 @@ sleep(5000);
         NoneRun = 0;
         TimerC = new ElapsedTime();
         TimerC.reset();
-        while ((TimerC.seconds() < 5)) {
+        while ((TimerC.seconds() < 2)) {
             if (tfod != null) {
                 // getUpdatedRecognitions() will return null if no new information is available since
                 // the last time that call was made.
@@ -492,7 +554,21 @@ sleep(5000);
         }
     }
 
-    private void readCurrentHeading() {
+    private void Shoot(double RP, double LP, double Timer, boolean Stop) {
+        ElapsedTime ShootTimer;
+        ShootTimer = new ElapsedTime(ElapsedTime.Resolution.SECONDS);
+        ShootTimer.reset();
+        while (ShootTimer.seconds() <= Timer) {
+            LeftLauncher.setPower(LP);
+            RightLauncher.setPower(RP);
+            Conveyor.setPower(1);
+        }
+        if (Stop == true) {
+            LeftLauncher.setPower(0);
+            RightLauncher.setPower(0);
+        }
+        Conveyor.setPower(0);
+
     }
 
     private void initTfod() {
@@ -635,6 +711,10 @@ Liam:
         MecanumFunction(0, 0, 0);
     }
 
+    private void readCurrentHeading() {
+
+    }
+
     private void DistanceSmoothTravel(double Distance, double Speed, double MaintainAngle,
                                       double IMUGain, boolean Accel_, boolean Decel_, double DecelDistance) {
         ElapsedTime TimerAccel;
@@ -666,12 +746,12 @@ Liam:
         if (Distance > 0) {
             TimerDecel.reset();
             TimerAccel.reset();
-            while (motor_drive_flAsDcMotor.getCurrentPosition() >= -EncoderTicks && opModeIsActive()) {
+            while (avgEnc >= -EncoderTicks && opModeIsActive()) {
                 BulkCaching();
                 avgEnc = (motor_drive_flAsDcMotor.getCurrentPosition() + motor_drive_frAsDcMotor.getCurrentPosition()) / 2;
-                telemetry.addData("Loop", 1);
-                telemetry.addData("Encoder Ticks Target", EncoderTicks);
-                telemetry.addData("mFl input", mFl);
+                telemetry.addData("Encoder Ticks Target", -EncoderTicks);
+                telemetry.addData("FL", motor_drive_flAsDcMotor.getCurrentPosition());
+                telemetry.addData("FR", motor_drive_frAsDcMotor.getCurrentPosition());
                 telemetry.update();
                 if (avgEnc >= -AccelDist && Accel_ == true) {
                     if (ResetTimerAccel_ == 1) {
@@ -709,8 +789,8 @@ Liam:
                 BulkCaching();
                 avgEnc = (motor_drive_flAsDcMotor.getCurrentPosition() + motor_drive_frAsDcMotor.getCurrentPosition()) / 2;
                 telemetry.addData("Encoder Ticks Target", -EncoderTicks);
-                telemetry.addData("Loop", 2);
-                telemetry.addData("mFl input", mFl);
+                telemetry.addData("FL", motor_drive_flAsDcMotor.getCurrentPosition());
+                telemetry.addData("FR", motor_drive_frAsDcMotor.getCurrentPosition());
                 telemetry.update();
                 if (avgEnc >= -AccelDist && Accel_ == true) {
                     if (ResetTimerAccel_ == 1) {

@@ -57,8 +57,8 @@ public class TestTeleopAS extends LinearOpMode {
         while (opModeIsActive()) {
             motor_drive_flAsDcMotor.setPower(-gamepad1.left_stick_y - (-gamepad1.left_stick_x - gamepad1.right_stick_x));
             motor_drive_blAsDcMotor.setPower(gamepad1.left_stick_y - (-gamepad1.left_stick_x + gamepad1.right_stick_x));
-            motor_drive_frAsDcMotor.setPower(-gamepad1.left_stick_y + (-gamepad1.left_stick_x - gamepad1.right_stick_x));
-            motor_drive_brAsDcMotor.setPower(gamepad1.left_stick_y + (-gamepad1.left_stick_x + gamepad1.right_stick_x));
+            motor_drive_frAsDcMotor.setPower(-gamepad1.left_stick_y + (gamepad1.left_stick_x - gamepad1.right_stick_x));
+            motor_drive_brAsDcMotor.setPower(gamepad1.left_stick_y + (gamepad1.left_stick_x + gamepad1.right_stick_x));
 
             if (!gamepad1.a && gamepadaAfter) {
                 claw.setPosition(.17);
