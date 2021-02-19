@@ -50,9 +50,9 @@ import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocaliz
 - Create exact angular adjustment function
  */
 
-@Autonomous(name = "FunctionTest2", group = "")
+@Autonomous(name = "FunctionTest3", group = "")
 @Disabled
-public class FunctionTest2 extends LinearOpMode {
+public class FunctionTest3 extends LinearOpMode {
     private static final String TFOD_MODEL_ASSET = "UltimateGoal.tflite";
     private static final String LABEL_FIRST_ELEMENT = "Quad";
     private static final String LABEL_SECOND_ELEMENT = "Single";
@@ -64,7 +64,6 @@ public class FunctionTest2 extends LinearOpMode {
     public static final double NEW_D = 0;
     public static final double NEW_F = 0;
     private DcMotor clarm;
-    private DcMotor intake;
     private Servo claw;
     private Servo ramp;
     private static final String VUFORIA_KEY =
@@ -108,7 +107,6 @@ public class FunctionTest2 extends LinearOpMode {
     boolean frOverload, flOverload, blOverload, brOverload;
     private Servo camServo;
 
-
     @Override
     public void runOpMode() {
 
@@ -124,7 +122,6 @@ public class FunctionTest2 extends LinearOpMode {
         clarm = hardwareMap.get(DcMotor.class, "clarm");
         claw = hardwareMap.get(Servo.class, "claw");
         ramp = hardwareMap.get(Servo.class, "ramp");
-        intake = hardwareMap.dcMotor.get("intake");
         PIDFCoefficients pidOrig = motor_drive_flAsDcMotor.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
 
         List<LynxModule> allHubs = hardwareMap.getAll(LynxModule.class);
@@ -197,7 +194,7 @@ public class FunctionTest2 extends LinearOpMode {
         }
         waitForStart();
 
-        Conveyor.setPower(-0.6);
+        Conveyor.setPower(-0.25);
         targetsUltimateGoal.activate();
         camServo.setPosition(0.79);
         DistanceSmoothTravel(22, .4, 0, 0.025, true, true, 1400);
@@ -206,156 +203,21 @@ public class FunctionTest2 extends LinearOpMode {
         camServo.setPosition(.5);
         DistanceSmoothTravel(42, .3, 0, 0.025, true, true, 4000);
 
-        AngularAdjustment(0, 0.01);
-        Shoot(-0.31, 0.745, 1.5, false);
-        AngularAdjustment(-4, 0.019);
-        Shoot(-0.31, 0.73, 1.5, false);
-        AngularAdjustment(-8.5, 0.025);
-        Shoot(-0.31, 0.733, 1.5, true);
-        IMUTurn(0);
-
-        clarm.setTargetPosition(700);
-        clarm.setPower(0.6);
-
-        if (QuadRun == 1) {
-            DistanceSmoothTravel(38, .6, 33, 0.025, true, true, 1400);
-            IMUTurn(90);
-            DistanceSmoothTravel(15, .4, 90, 0.025, true, true, 1400);
-            clarm.setTargetPosition(850);
-            clarm.setPower(0.15);
-            sleep(250);
-            claw.setPosition(0.35);
-            sleep(400);
-            clarm.setTargetPosition(450);
-            clarm.setPower(-0.6);
-            sleep(200);
-            IMUTurn(13);
-            DistanceSmoothTravel(-22, .7, 13, 0.025, true, true, 1400);
-            wallTargetTracking(vuforia, allTrackables, 90, 0, 58, 0, 10, 2, 1, 3, false, 0);
-            DistanceSmoothTravel(-18, .5, 0, 0.025, true, true, 2800);
-            IMUTurn(-64);
-            clarm.setTargetPosition(950);
-            clarm.setPower(0.5);
-            sleep(750);
-            claw.setPosition(0.03);
-            sleep(500);
-            clarm.setTargetPosition(450);
-            clarm.setPower(-0.7);
-            IMUTurn(0);
-            DistanceSmoothTravel(54, 0.7, 0, 0.025, true, true, 1400);
-            IMUTurn(90);
-            DistanceSmoothTravel(14, .4, 90, 0.025, true, true, 1400);
-            IMUTurn(120);
-            clarm.setTargetPosition(850);
-            clarm.setPower(0.15);
-            sleep(300);
-            claw.setPosition(0.35);
-            sleep(300);
-            clarm.setTargetPosition(-5);
-            clarm.setPower(-0.6);
-            sleep(400);
-            IMUTurn(0);
-            DistanceSmoothTravel(-19, .7, 0, 0.025, true, true, 1400);
-            MecanumFunction(0, 0, 0);
-
-
-        } else if (OneRun == 1) {
-            DistanceSmoothTravel(8, .4, 12.5, 0.025, true, true, 1400);
-            IMUTurn(90);
-            DistanceSmoothTravel(13, .4, 90, 0.025, true, true, 1400);
-            clarm.setTargetPosition(850);
-            clarm.setPower(0.15);
-            sleep(500);
-            claw.setPosition(0.35);
-            sleep(500);
-            clarm.setTargetPosition(450);
-            clarm.setPower(-0.6);
-            sleep(750);
-            DistanceSmoothTravel(3, .4, 90, 0.025, true, true, 1400);
-            IMUTurn(-5);
-            DistanceSmoothTravel(-4, .4, -5, 0.025, true, true, 1400);
-            wallTargetTracking(vuforia, allTrackables, 90, 0, 58, 0, 10, 2, 1, 3, false, 0);
-            DistanceSmoothTravel(-17.7, .4, 0, 0.025, true, true, 1400);
-            IMUTurn(-68);
-            clarm.setTargetPosition(950);
-            clarm.setPower(0.5);
-            sleep(400);
-            claw.setPosition(0.03);
-            sleep(500);
-            clarm.setTargetPosition(450);
-            clarm.setPower(-0.7);
-            IMUTurn(0);
-            DistanceSmoothTravel(60, .4, 7, 0.025, true, true, 1400);
-            clarm.setTargetPosition(850);
-            clarm.setPower(0.7);
-            sleep(1000);
-            claw.setPosition(0.35);
-            sleep(900);
-            clarm.setTargetPosition(-5);
-            clarm.setPower(-0.7);
-            sleep(1000);
-            DistanceSmoothTravel(-16, .4, 0, 0.025, true, true, 1400);
-
-
-        } else if (NoneRun == 1) {
-            IMUTurn(0);
-            DistanceSmoothTravel(-6, .4, 0, 0.025, true, true, 1400);
-            sleep(200);
-            IMUTurn(90);
-            DistanceSmoothTravel(36, .4, 90, 0.025, true, true, 1400);
-            clarm.setTargetPosition(850);
-            clarm.setPower(0.15);
-            sleep(500);
-            claw.setPosition(0.35);
-            sleep(500);
-            clarm.setTargetPosition(450);
-            clarm.setPower(-0.63);
-            sleep(500);
-            camServo.setPosition(0.6);
-            DistanceSmoothTravel(-6, .4, 90, 0.025, true, true, 1400);
-            IMUTurn(-5);
-            DistanceSmoothTravel(2, .4, -5, 0.025, true, true, 1400);
-            wallTargetTracking(vuforia, allTrackables, 90, -8.4, 60, 0, 10, 2, 1, 3, false, 0);
-            camServo.setPosition(0.5);
-            DistanceSmoothTravel(-8.25, .4, 0, 0.025, true, true, 1400);
-            IMUTurn(-55.5);
-            clarm.setTargetPosition(1000);
-            clarm.setPower(0.5);
-            sleep(400);
-            claw.setPosition(0.03);
-            sleep(500);
-            clarm.setTargetPosition(450);
-            clarm.setPower(-0.7);
-            IMUTurn(0);
-            DistanceSmoothTravel(10, .4, 0, 0.025, true, true, 1400);
-            IMUTurn(90);
-            DistanceSmoothTravel(10, .4, 90, 0.025, true, true, 1400);
-            clarm.setTargetPosition(850);
-            clarm.setPower(0.15);
-            sleep(300);
-            claw.setPosition(0.35);
-            sleep(300);
-            clarm.setTargetPosition(-5);
-            clarm.setPower(-0.6);
-            sleep(600);
-            DistanceSmoothTravel(-26, .4, 90, 0.025, true, true, 1400);
-            IMUTurn(0);
-            DistanceSmoothTravel(18, .4, 0, 0.025, true, true, 1400);
-
-
-            //DistanceSmoothTravel(4, .6, 0, 0.1, true, true, 1400);
-        }
-        clarm.setTargetPosition(0);
-        clarm.setPower(0.4);
-        sleep(1500);
-        //  targetsUltimateGoal.activate();
-
-
+        AngularAdjustment(.8, 0.01);
+        Shoot(-0.315, 0.737, 1.5, false);
+        AngularAdjustment(-4, 0.02);
+        Shoot(-0.315, 0.737, 1.5, false);
+        AngularAdjustment(-8.5, 0.03);
+        Shoot(-0.315, 0.737, 1.5, true);
         // wallTargetTracking(vuforia, allTrackables, 90, -3, 40.0, 0, 10, 2, 1, 70000, false, 5);
     }
 
+
     private void AngularAdjustment(double targetangle, double IMUgain) {
-        while ((!((-targetangle + CurrentHeading) <= 0.25 && (-targetangle + CurrentHeading) >= -0.25))) {
+        while ((!((-targetangle + CurrentHeading) <= 0.5 && (-targetangle + CurrentHeading) >= -0.5))) {
+            if (isStopRequested()) {
+                break;
+            }
             BulkCaching();
             MecanumFunction(0, 0, IMUgain * (-targetangle + CurrentHeading));
         }
@@ -516,7 +378,6 @@ public class FunctionTest2 extends LinearOpMode {
         clarm.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         clarm.setTargetPosition(0);
         clarm.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        intake.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         CurrentHeading = angles.firstAngle;
         motor_drive_brAsDcMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         motor_drive_frAsDcMotor.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -618,7 +479,6 @@ public class FunctionTest2 extends LinearOpMode {
             if (tfod != null) {
                 // getUpdatedRecognitions() will return null if no new information is available since
                 // the last time that call was made.
-                tfod.setZoom(2.5, 1.78);
                 List<Recognition> updatedRecognitions = tfod.getUpdatedRecognitions();
                 if (updatedRecognitions != null) {
 
@@ -815,10 +675,6 @@ Liam:
     private void readCurrentHeading() {
 
     }
-
-    /*private void RingPickUp (double ringNumber, double timer) {
-        if intake.setVelocity
-    }*/
 
     private void DistanceSmoothTravel(double Distance, double Speed, double MaintainAngle,
                                       double IMUGain, boolean Accel_, boolean Decel_, double DecelDistance) {
