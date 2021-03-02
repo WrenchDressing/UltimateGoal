@@ -16,7 +16,6 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
-import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
 import org.firstinspires.ftc.robotcore.external.matrices.VectorF;
 import org.firstinspires.ftc.robotcore.external.navigation.Acceleration;
@@ -52,7 +51,7 @@ public class TestTeleopAS extends LinearOpMode {
     // Constants for perimeter targets
     private static final float halfField = 72 * mmPerInch;
     private static final float quadField = 36 * mmPerInch;
-    WebcamName webcamName = null;
+
     private BNO055IMU imu;
     private VuforiaCurrentGame vuforiaUltimateGoal;
     // Class Members
@@ -378,10 +377,10 @@ public class TestTeleopAS extends LinearOpMode {
                 "cameraMonitorViewId", "id", hardwareMap.appContext.getPackageName());
         VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters();
         parameters.vuforiaLicenseKey = VUFORIA_KEY;
-        parameters.cameraName = hardwareMap.get(WebcamName.class, "Webcam 1");
+
 
         vuforia = ClassFactory.getInstance().createVuforia(parameters); //  <<<====  THIS LINE WAS MISSING
-        // webcamName = hardwareMap.get(WebcamName.class, "Webcam 1");
+
         clarm.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         clarm.setTargetPosition(0);
         clarm.setMode(DcMotor.RunMode.RUN_TO_POSITION);
@@ -447,7 +446,7 @@ public class TestTeleopAS extends LinearOpMode {
 
         for (VuforiaTrackable trackable : allTrackables) {
             ((VuforiaTrackableDefaultListener) trackable.getListener()).setPhoneInformation(robotFromCamera, parameters.cameraDirection);
-            ((VuforiaTrackableDefaultListener) trackable.getListener()).setCameraLocationOnRobot(webcamName, robotFromCamera);
+
         }
 
 //        vuforia = ClassFactory.getInstance().createVuforia(parameters);
