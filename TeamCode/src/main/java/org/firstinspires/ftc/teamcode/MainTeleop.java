@@ -110,16 +110,15 @@ public class MainTeleop extends LinearOpMode {
     double FinalAngle = 0.0;
     double MaintainAngle = 0;
     ElapsedTime TimerA;
-
-
     private enum State {
+        MOVE_RIGHT,
+        MOVE_LEFT,
+        MOVE_FORWARD,
+        MOVE_BACKWARDS,
+        SHOOT,
+        INTAKE,
         IDLE,
-        FORWARD,
-        BACKWARDS,
-        STRAFE_RIGHT,
-        STRAFE_LEFT
     }
-
     private State CurrentState;
 
 
@@ -255,87 +254,7 @@ public class MainTeleop extends LinearOpMode {
         //targetsUltimateGoal.activate();
         //camServo.setPosition(.5);
         while (opModeIsActive()) {
-            switch (CurrentState) {
-                case FORWARD:
-                    if (gamepad1.left_stick_y < 0) {
-                        claw.setPosition(0.8);
-                        telemetry.addData("Forward", CurrentState);
-                        telemetry.update();
-                    } else if (gamepad1.left_stick_y > 0) {
-                        CurrentState = State.BACKWARDS;
-                    } else if (gamepad1.left_stick_x > 0) {
-                        CurrentState = State.STRAFE_RIGHT;
-                    } else if (gamepad1.left_stick_x < 0) {
-                        CurrentState = State.STRAFE_LEFT;
-                    } else {
-                        CurrentState = State.IDLE;
-                    }
-                    break;
-
-                case BACKWARDS:
-                    if (gamepad1.left_stick_y > 0) {
-                        claw.setPosition(0.7);
-                        telemetry.addData("Backwards", CurrentState);
-                        telemetry.update();
-                    } else if (gamepad1.left_stick_y < 0) {
-                        CurrentState = State.FORWARD;
-                    } else if (gamepad1.left_stick_x > 0) {
-                        CurrentState = State.STRAFE_RIGHT;
-                    } else if (gamepad1.left_stick_x < 0) {
-                        CurrentState = State.STRAFE_LEFT;
-                    } else {
-                        CurrentState = State.IDLE;
-                    }
-                    break;
-
-                case STRAFE_LEFT:
-                    if (gamepad1.left_stick_x < 0) {
-                        claw.setPosition(0.9);
-                        telemetry.addData("Strafe Left", CurrentState);
-                        telemetry.update();
-                    } else if (gamepad1.left_stick_y > 0) {
-                        CurrentState = State.BACKWARDS;
-                    } else if (gamepad1.left_stick_x > 0) {
-                        CurrentState = State.STRAFE_RIGHT;
-                    } else if (gamepad1.left_stick_y < 0) {
-                        CurrentState = State.FORWARD;
-                    } else {
-                        CurrentState = State.IDLE;
-                    }
-                    break;
-
-                case STRAFE_RIGHT:
-                    if (gamepad1.left_stick_x > 0) {
-                        claw.setPosition(1);
-                        telemetry.addData("Strafe Right", CurrentState);
-                        telemetry.update();
-                    } else if (gamepad1.left_stick_y > 0) {
-                        CurrentState = State.BACKWARDS;
-                    } else if (gamepad1.left_stick_x < 0) {
-                        CurrentState = State.STRAFE_LEFT;
-                    } else if (gamepad1.left_stick_y < 0) {
-                        CurrentState = State.FORWARD;
-                    } else {
-                        CurrentState = State.IDLE;
-                    }
-                    break;
-
-                case IDLE:
-                    if (gamepad1.left_stick_y == 0 && gamepad1.left_stick_x == 0) {
-                        claw.setPosition(0);
-                        telemetry.addData("Idle", CurrentState);
-                        telemetry.update();
-                    } else if (gamepad1.left_stick_y > 0) {
-                        CurrentState = State.BACKWARDS;
-                    } else if (gamepad1.left_stick_x < 0) {
-                        CurrentState = State.STRAFE_LEFT;
-                    } else if (gamepad1.left_stick_x > 0) {
-                        CurrentState = State.STRAFE_RIGHT;
-                    } else {
-                        CurrentState = State.FORWARD;
-                    }
-            }
-
+            PersonalityStateMachine();
             ContinuedIMU();
             if (gamepad1.left_stick_x < 0) {
                 gamepadxpolar = -1;
@@ -856,6 +775,144 @@ public class MainTeleop extends LinearOpMode {
         }
 
 
+    }
+
+    private void PersonalityStateMachine() {
+        switch (CurrentState) {
+            case MOVE_RIGHT:
+                if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                    telemetry.addData("strafe and turn right", CurrentState);
+                    telemetry.update();
+                } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                    CurrentState = State.MOVE_LEFT;
+                } else if (gamepad1.left_stick_y < 0) {
+                    CurrentState = State.MOVE_FORWARD;
+                } else if (gamepad1.left_stick_y > 0) {
+                    CurrentState = State.MOVE_BACKWARDS;
+                } else if (RightLauncher.getPower() < 0) {
+                    CurrentState = State.SHOOT;
+                } else if (intake.getPower() > 0) {
+                    CurrentState = State.INTAKE;
+                } else {
+                    CurrentState = State.IDLE;
+                }
+                break;
+
+            case MOVE_LEFT:
+                if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                    telemetry.addData("strafe or turn", CurrentState);
+                    telemetry.update();
+                } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                    CurrentState = State.MOVE_RIGHT;
+                } else if (gamepad1.left_stick_y < 0) {
+                    CurrentState = State.MOVE_FORWARD;
+                } else if (gamepad1.left_stick_y > 0) {
+                    CurrentState = State.MOVE_BACKWARDS;
+                } else if (RightLauncher.getPower() < 0) {
+                    CurrentState = State.SHOOT;
+                } else if (intake.getPower() > 0) {
+                    CurrentState = State.INTAKE;
+                } else {
+                    CurrentState = State.IDLE;
+                }
+                break;
+
+            case MOVE_FORWARD:
+                if (gamepad1.left_stick_y < 0) {
+                    telemetry.addData("move forward", CurrentState);
+                    telemetry.update();
+                } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                    CurrentState = State.MOVE_RIGHT;
+                } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                    CurrentState = State.MOVE_LEFT;
+                } else if (gamepad1.left_stick_y > 0) {
+                    CurrentState = State.MOVE_BACKWARDS;
+                } else if (RightLauncher.getPower() < 0) {
+                    CurrentState = State.SHOOT;
+                } else if (intake.getPower() > 0) {
+                    CurrentState = State.INTAKE;
+                } else {
+                    CurrentState = State.IDLE;
+                }
+                break;
+
+            case MOVE_BACKWARDS:
+                if (gamepad1.left_stick_y > 0) {
+                    telemetry.addData("move backwards", CurrentState);
+                    telemetry.update();
+                } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                    CurrentState = State.MOVE_RIGHT;
+                } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                    CurrentState = State.MOVE_LEFT;
+                } else if (gamepad1.left_stick_y < 0) {
+                    CurrentState = State.MOVE_FORWARD;
+                } else if (RightLauncher.getPower() < 0) {
+                    CurrentState = State.SHOOT;
+                } else if (intake.getPower() > 0) {
+                    CurrentState = State.INTAKE;
+                } else {
+                    CurrentState = State.IDLE;
+                }
+                break;
+
+            case SHOOT:
+                if (RightLauncher.getPower() < 0) {
+                    telemetry.addData("shoot", CurrentState);
+                    telemetry.update();
+                } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                    CurrentState = State.MOVE_RIGHT;
+                } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                    CurrentState = State.MOVE_LEFT;
+                } else if (gamepad1.left_stick_y < 0) {
+                    CurrentState = State.MOVE_FORWARD;
+                } else if (gamepad1.left_stick_y > 0) {
+                    CurrentState = State.MOVE_BACKWARDS;
+                } else if (intake.getPower() > 0) {
+                    CurrentState = State.INTAKE;
+                } else {
+                    CurrentState = State.IDLE;
+                }
+                break;
+
+            case INTAKE:
+                if (intake.getPower() > 0) {
+                    telemetry.addData("intake", CurrentState);
+                    telemetry.update();
+                } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                    CurrentState = State.MOVE_RIGHT;
+                } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                    CurrentState = State.MOVE_LEFT;
+                } else if (gamepad1.left_stick_y < 0) {
+                    CurrentState = State.MOVE_FORWARD;
+                } else if (gamepad1.left_stick_y > 0) {
+                    CurrentState = State.MOVE_BACKWARDS;
+                } else if (RightLauncher.getPower() < 0) {
+                    CurrentState = State.SHOOT;
+                } else {
+                    CurrentState = State.IDLE;
+                }
+                break;
+
+            case IDLE:
+                if ((RightLauncher.getPower() == 0) && (intake.getPower() == 0) && (gamepad1.right_stick_x == 0) && (gamepad1.left_stick_y == 0) && (gamepad1.left_stick_x == 0)) {
+                    telemetry.addData("idle", CurrentState);
+                    telemetry.update();
+                } else if (gamepad1.right_stick_x > 0 && gamepad1.left_stick_x > 0) {
+                    CurrentState = State.MOVE_RIGHT;
+                } else if (gamepad1.right_stick_x < 0 && gamepad1.left_stick_x < 0) {
+                    CurrentState = State.MOVE_LEFT;
+                } else if (gamepad1.left_stick_y < 0) {
+                    CurrentState = State.MOVE_FORWARD;
+                } else if (gamepad1.left_stick_y > 0) {
+                    CurrentState = State.MOVE_BACKWARDS;
+                } else if (RightLauncher.getPower() < 0) {
+                    CurrentState = State.SHOOT;
+                } else {
+                    CurrentState = State.INTAKE;
+                }
+                break;
+
+        }
     }
 
    /* private void wallTargetTracking(VuforiaLocalizer vufor, Iterable<? extends VuforiaTrackable> allTrackables,
