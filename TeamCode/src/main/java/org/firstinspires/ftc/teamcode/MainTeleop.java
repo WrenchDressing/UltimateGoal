@@ -10,12 +10,19 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Blinker;
 import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.NormalizedColorSensor;
+import com.qualcomm.robotcore.hardware.NormalizedRGBA;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
+import org.firstinspires.ftc.robotcore.external.JavaUtil;
 import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
 import org.firstinspires.ftc.robotcore.external.navigation.Acceleration;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
@@ -58,15 +65,27 @@ public class MainTeleop extends LinearOpMode {
     private float phoneXRotate = 0;
     private float phoneYRotate = 0;
     private float phoneZRotate = 90;
+    double AccelConstant, AccelConstant2;
+    double DecelConstant, DecelConstant2;
+    double YL, XL;
     private Blinker expansion_Hub_1;
-    private DcMotor motor_drive_flAsDcMotor;
-    private DcMotor motor_drive_frAsDcMotor;
-    private DcMotor motor_drive_blAsDcMotor;
-    private DcMotor motor_drive_brAsDcMotor;
-    private DcMotor clarm;
+    private Servo leftbrow, lefteye, rightbrow, righteye;
+    private DcMotorEx motor_drive_flAsDcMotor;
+    private DcMotorEx motor_drive_frAsDcMotor;
+    private DcMotorEx motor_drive_blAsDcMotor;
+    private DcMotorEx motor_drive_brAsDcMotor;
+    public static final double NEW_P = 20;
+    public static final double NEW_I = 15;
+    public static final double NEW_D = 0;
+    public static final double NEW_F = 5;
+    private Servo pusher;
+    private ColorSensor rangeSensor_REV_ColorRangeSensor;
+    NormalizedRGBA normalizedColors;
+    int color;
+    float hue;
     private Servo claw;
     private CRServo Conveyor;
-    private Servo ramp;
+    private DcMotorEx ramp;
     double Xposition;
     double Yposition;
     double TrueTrackSwitch;
@@ -76,6 +95,7 @@ public class MainTeleop extends LinearOpMode {
     double YSpeed;
     double lsPower, rsPower;
     double LastVal;
+    double z;
     double mXR, mYL, mXL, flScale, frScale, blScale, brScale;
     double CurrentX, CurrentY;
     double mFr, mFl, mBl, mBr;
@@ -87,8 +107,11 @@ public class MainTeleop extends LinearOpMode {
     boolean gamepada2After = false;
     boolean gamepad2lbafter = false;
     boolean gamepadbAfter = false;
+    boolean gamepad2YAfter = false;
     boolean lastGamepadX = false;
+    boolean lastDpadRight = false;
     boolean lastGamepadY = false;
+    private Servo clarm;
     double lastClarm;
     double X, Y, XD, YD;
     private DcMotor intake;
@@ -97,69 +120,80 @@ public class MainTeleop extends LinearOpMode {
     boolean lastDPadUp = false;
     boolean lastDPadDown = false;
     double gamepadxpolar;
-    boolean lastDPadRight = false;
+    boolean FullMag = false;
     boolean LastDPadUp2 = false, LastDpadDown2 = false;
     boolean lastDPadLeft = false;
     boolean lastBumper = false;
     float CurrentHeading;
     double clarmvariable;
     private Servo camServo;
+    double currentrampvariable;
     double LastValue = 0.0;
     double PosDiffValue;
+    double n = 1;
     double NegDiffValue;
     double FinalAngle = 0.0;
     double MaintainAngle = 0;
     ElapsedTime TimerA;
+    ElapsedTime PusherTimer;
+    boolean VPTimer = false;
+
     private enum State {
+        //personality states
         MOVE_RIGHT,
         MOVE_LEFT,
         MOVE_FORWARD,
         MOVE_BACKWARDS,
         SHOOT,
         INTAKE,
-        IDLE,
+        PERSONALITY_IDLE,
+        MAD,
+        //shoot and intake states
+        DISC_COLLECTION,
+        RAMP_TO_SHOOT,
+        INTAKE_IDLE,
+        //BREAK,
+        POWERSHOT_RAMP,
+        SHOOT_2,
     }
-    private State CurrentState;
+
+    private State PersonalityCurrentState;
+    private State IntakeCurrentState;
+    private State IntakeAndShootCurrentState;
 
 
     @Override
     public void runOpMode() {
-        motor_drive_flAsDcMotor = hardwareMap.dcMotor.get("motor_drive_flAsDcMotor");
-        motor_drive_frAsDcMotor = hardwareMap.dcMotor.get("motor_drive_frAsDcMotor");
-        motor_drive_blAsDcMotor = hardwareMap.dcMotor.get("motor_drive_blAsDcMotor");
-        motor_drive_brAsDcMotor = hardwareMap.dcMotor.get("motor_drive_brAsDcMotor");
-        clarm = hardwareMap.dcMotor.get("clarm");
-        clarm.setDirection(DcMotor.Direction.FORWARD);
+        motor_drive_flAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_flAsDcMotor");
+        motor_drive_frAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_frAsDcMotor");
+        motor_drive_blAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_blAsDcMotor");
+        motor_drive_brAsDcMotor = hardwareMap.get(DcMotorEx.class, "motor_drive_brAsDcMotor");
         intake = hardwareMap.dcMotor.get("intake");
+        righteye = hardwareMap.get(Servo.class, "righteye");
+        lefteye = hardwareMap.get(Servo.class, "lefteye");
+        clarm = hardwareMap.get(Servo.class, "clarm");
+        leftbrow = hardwareMap.get(Servo.class, "leftbrow");
+        rightbrow = hardwareMap.get(Servo.class, "rightbrow");
+        pusher = hardwareMap.get(Servo.class, "pusher");
         RightLauncher = hardwareMap.dcMotor.get("RightLauncher");
         LeftLauncher = hardwareMap.dcMotor.get("LeftLauncher");
         Conveyor = hardwareMap.get(CRServo.class, "Conveyor");
         TimerA = new ElapsedTime(ElapsedTime.Resolution.SECONDS);
+        PusherTimer = new ElapsedTime(ElapsedTime.Resolution.SECONDS);
 
-        ramp = hardwareMap.get(Servo.class, "ramp");
+        ramp = hardwareMap.get(DcMotorEx.class, "ramp");
         List<LynxModule> allHubs = hardwareMap.getAll(LynxModule.class);
         imu = hardwareMap.get(BNO055IMU.class, "imu");
+        rangeSensor_REV_ColorRangeSensor = hardwareMap.get(ColorSensor.class, "rangeSensor");
 
         //start of homing for clarm
-        lastClarm = clarm.getCurrentPosition();
-        clarm.setPower(-0.4);
-        sleep(200);
-        while (lastClarm != clarm.getCurrentPosition()) {
-            lastClarm = clarm.getCurrentPosition();
-            sleep(100);
-        }
-        clarm.setPower(0);
-        clarm.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        clarm.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        clarm.setPower(0);
-        clarm.setTargetPosition(0);
-        clarm.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+
         //end of homing for clarm
 
         Initialization();
 
 
-        ramp.setPosition(0.6);
         claw = hardwareMap.servo.get("claw");
         motor_drive_brAsDcMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         motor_drive_frAsDcMotor.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -174,9 +208,31 @@ public class MainTeleop extends LinearOpMode {
         motor_drive_frAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motor_drive_blAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motor_drive_brAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        motor_drive_brAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        motor_drive_blAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        motor_drive_flAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        motor_drive_frAsDcMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        PIDFCoefficients pidNew = new PIDFCoefficients(NEW_P, NEW_I, NEW_D, NEW_F);
+        motor_drive_flAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
+        motor_drive_frAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
+        motor_drive_blAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
+        motor_drive_brAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
+
+        PIDFCoefficients rampPID = new PIDFCoefficients(12, 8f, 0, 0);
+        ramp.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, rampPID);
+        ramp.setPositionPIDFCoefficients(8);
+
         intake.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         RightLauncher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         LeftLauncher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        RightLauncher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        LeftLauncher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        ((NormalizedColorSensor) rangeSensor_REV_ColorRangeSensor).setGain(2);
+        normalizedColors = ((NormalizedColorSensor) rangeSensor_REV_ColorRangeSensor).getNormalizedColors();
+        color = normalizedColors.toColor();
+        hue = JavaUtil.colorToHue(color);
+
         telemetry.update();
         VuforiaTrackables targetsUltimateGoal = this.vuforia.loadTrackablesFromAsset("UltimateGoal");
         VuforiaTrackable blueTowerGoalTarget = targetsUltimateGoal.get(0);
@@ -236,32 +292,59 @@ public class MainTeleop extends LinearOpMode {
 
         targetVisible = false;
 
-        // WARNING:
-        // In this sample, we do not wait for PLAY to be pressed.  Target Tracking is started immediately when INIT is pressed.
-        // This sequence is used to enable the new remote DS Camera Preview feature to be used with this sample.
-        // CONSEQUENTLY do not put any driving commands in this loop.
-        // To restore the normal opmode structure, just un-comment the following line:
+
         ClawVariable = 1;
         clarmvariable = 0;
-
-        CurrentState = State.IDLE;
+        boolean gamepad2xafter = false;
+        double m;
+        m = 1;
+        PersonalityCurrentState = State.PERSONALITY_IDLE;
+        //IntakeCurrentState = State.INTAKE_IDLE;
+        IntakeAndShootCurrentState = State.INTAKE_IDLE;
+        currentrampvariable = 100;
+        ramp.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        ramp.setPower(-0.2);
+        sleep(50);
+        while (currentrampvariable - ramp.getCurrentPosition() > 0 || currentrampvariable - ramp.getCurrentPosition() < 0) {
+            ramp.setPower(-0.2);
+            sleep(15);
+            currentrampvariable = ramp.getCurrentPosition();
+            if (isStopRequested()) {
+                break;
+            }
+        }
+        ramp.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        ramp.setTargetPosition(0);
+        ramp.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        pusher.setPosition(0);
+        boolean gamepad2a = false;
+        double v = 1;
+        boolean gamepad2rightbumperafter = false;
 
         waitForStart();
 
-
         //Set this to ZERO if you want to disable testing mode ^^^^^
         clarmvariable = 1;
+
         //targetsUltimateGoal.activate();
         //camServo.setPosition(.5);
+        z = 1;
+        boolean gamepad1Yafter = false;
         while (opModeIsActive()) {
             PersonalityStateMachine();
+            //IntakeStateMachine();
+            IntakeAndShoot();
             ContinuedIMU();
             if (gamepad1.left_stick_x < 0) {
                 gamepadxpolar = -1;
             } else if (gamepad1.left_stick_x >= 0) {
                 gamepadxpolar = 1;
             }
-            MecanumFunction(gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x, FinalAngle);
+            if (gamepad1.left_trigger > 0.3) {
+                MecanumFunction(-gamepad1.left_stick_y * 0.5 / 2, gamepad1.left_stick_x * 0.5 / 2, gamepad1.right_stick_x * 0.5 / 2);
+            } else {
+                MecanumFunction(-gamepad1.left_stick_y / 2, gamepad1.left_stick_x / 2, gamepad1.right_stick_x / 2);
+            }
             /*motor_drive_flAsDcMotor.setPower(-gamepad1.left_stick_y + (gamepadxpolar * (gamepad1.left_stick_x * gamepad1.left_stick_x)) + gamepad1.right_stick_x);
             motor_drive_blAsDcMotor.setPower(gamepad1.left_stick_y + (gamepadxpolar * (gamepad1.left_stick_x * gamepad1.left_stick_x)) - gamepad1.right_stick_x);
             motor_drive_frAsDcMotor.setPower(-gamepad1.left_stick_y + (gamepadxpolar * (gamepad1.left_stick_x * gamepad1.left_stick_x)) - gamepad1.right_stick_x);
@@ -273,93 +356,277 @@ public class MainTeleop extends LinearOpMode {
                 wallTargetTracking(vuforia, allTrackables, 90, -2.5, 41.8, 0, 10, 2, 1, 3, false, 0);
             }
             */
+            if (gamepad2.dpad_right) {
+                RightLauncher.setPower(0);
+                LeftLauncher.setPower(0);
+            }
+            if (gamepad2.left_trigger > 0.3) {
+                if (ramp.getCurrentPosition() > 300) {
+                    pusher.setPosition(0.98);
+                }
+            }
+            if (gamepad1.x) {
+                pusher.setPosition(0.41);
+            }
+            if (gamepad1.y) {
+                pusher.setPosition(0.775);
+            }
+            if (gamepad1.b) {
+                pusher.setPosition(0.98);
+            }
+            gamepad2rightbumperafter = gamepad2.right_bumper;
+            if (gamepad2.dpad_left) {
+                n *= -1;
+            }
+            if (gamepad2.a && !gamepad2a) {
+                v *= -1;
+            }
 
+            gamepad2a = gamepad2.a;
+
+            if (v > 0) {
+                if (gamepad2.x && !gamepad2xafter) {
+                    clarmvariable = clarmvariable * -1;
+                }
+                if (clarmvariable > 0 && clarmvariable < 5) {
+                    clarm.setPosition(0.12);
+                } else if (clarmvariable > -5 && clarmvariable < 0) {
+                    clarm.setPosition(0.55);
+                }
+            } else {
+                clarm.setPosition(0);
+            }
+
+
+            gamepad2xafter = gamepad2.x;
             LastDpadDown2 = gamepad1.dpad_down;
+
             if (gamepad2.b && !gamepadbAfter) {
                 ClawVariable = ClawVariable * -1;
             }
-                /*if (ClawVariable > 0) {
-                    claw.setPosition(0);
-                } else if (ClawVariable < 0) {
-                    claw.setPosition(1);
-                }*/
+            if (ClawVariable > 0) {
+                claw.setPosition(0);
+            } else if (ClawVariable < 0) {
+                claw.setPosition(1);
+            }
 
             gamepadaAfter = gamepad2.a;
             gamepadbAfter = gamepad2.b;
             gamepada2After = gamepad1.a;
 
 
-            if (gamepad2.dpad_up && !lastDPadUp) {
-                ramp.setPosition(0.0);
-
-                RightLauncher.setPower(-0.37);
-                LeftLauncher.setPower(0.79);
+            /*if (gamepad2.dpad_up && !lastDPadUp) {
+                RightLauncher.setPower(-0.2);
+                LeftLauncher.setPower(0.2);
+                ramp.setTargetPosition(816);
+                ramp.setPower(0.6);
+                sleep(500);
+                RightLauncher.setPower(.8);
+                LeftLauncher.setPower(-0.4);
 
                 intake.setPower(0);
                 Conveyor.setPower(0);
-            }
+            }*/
+/*
             if (gamepad2.left_bumper && !gamepad2lbafter) {
-                ramp.setPosition(0);
+                ramp.setTargetPosition(0);
+                ramp.setPower(-0.5);
+                RightLauncher.setPower(-0.2);
+                LeftLauncher.setPower(0.2);
+                intake.setPower(1);
 
-                RightLauncher.setPower(-0.31);
-                LeftLauncher.setPower(0.745);
-
-                intake.setPower(0);
-                Conveyor.setPower(0);
 
             }
             gamepad2.left_bumper = gamepad2lbafter;
-            if (gamepad2.dpad_down && !lastDPadDown) {
-                ramp.setPosition(0.6);
+            if (gamepad2.dpad_down && !lastDPadDown && pusher.getPosition() == 0) {
+                ramp.setTargetPosition(0);
+                ramp.setPower(-0.5);
                 RightLauncher.setPower(0);
                 LeftLauncher.setPower(0);
-                Conveyor.setPower(0);
             }
+            */
+
             lastDPadUp = gamepad2.dpad_up;
             lastDPadDown = gamepad2.dpad_down;
 
 
-            //  lastDPadRight = gamepad2.dpad_right;
+            // lastDPadRight = gamepad2.dpad_right;
             //taking in rings
-            if (gamepad2.dpad_right) {//&& !lastDPadRight) {
+            /*if (gamepad2.dpad_right && !lastDpadRight) {//&& !lastDPadRight) {
                 intake.setPower(-1);
-                Conveyor.setPower(-1);
+              pusher.setPosition(0.9);
                 //spitting out rings
-            } else if (gamepad2.dpad_left) {//&& !lastDPadLeft) {
-                intake.setPower(0.8);
-                Conveyor.setPower(0.8);
+            } else if (gamepad2.dpad_left&& !lastDPadLeft) {//&& !lastDPadLeft) {
+               // intake.setPower(0.8);
+                pusher.setPosition(0);
             } else {
-                intake.setPower(0);
-                Conveyor.setPower(0);
-            }
+
+            }*/
+
+
+            lastDPadLeft = gamepad2.dpad_left;
 
 
             //  lastDPadLeft = gamepad2.dpad_left;
 
-            if ((!gamepad2.dpad_right) && (!gamepad2.dpad_left)) {
-                intake.setPower(0);
-                if (ramp.getPosition() > 0.3) { // Check here to make sure we don't step on the other Conveyor.setPower commands below
-                    Conveyor.setPower(0);
-                }
-            }
-
-
-            if (gamepad2.right_bumper && !lastBumper) {
-                clarmvariable = -clarmvariable;
-                if (clarmvariable > 0) {
-                    clarm.setTargetPosition(990);
-                    clarm.setPower(0.4);
-                }
-                if (clarmvariable < 0) {
-                    clarm.setTargetPosition(400);
-                    clarm.setPower(0.4);
-                }
-            }
 
             lastBumper = gamepad2.right_bumper;
 
 
         }
+    }
+
+    private void SpeedCalculator(double XDistance, double YDistance, double Speed, double AccelDistance, double DecelDistance, boolean Accel, boolean Decel) {
+        if (Math.abs(Xposition) >= Math.abs(XDistance)) {
+            if (Decel) {
+                X = 0;
+            }
+        }
+        if (XDistance == 0) {
+            X = 0;
+        }
+        if (Math.abs(Yposition) >= Math.abs(YDistance)) {
+            if (Decel) {
+                Y = 0;
+            }
+        }
+        if (XDistance < 0) {
+            XD = -1;
+        }
+        if (YDistance < 0) {
+            YD = -1;
+        }
+        if (XDistance == 0) {
+            if (Accel && ((Math.abs(Yposition) <= Math.abs(AccelDistance)))) {
+                YL = Math.min(Math.max(AccelConstant * (Yposition * Yposition), 0.025), YSpeed) * Y * YD;
+                XL = Math.min(Math.max(AccelConstant2 * (Xposition * Xposition), 0.025), Speed) * X * XD;
+            } else if (Decel && ((Math.abs(YDistance) - Math.abs(Yposition) <= Math.abs(DecelDistance)))) {
+                YL = Math.min(Math.max(0.025 + (DecelConstant * Math.abs((YDistance - Yposition))), 0.025), YSpeed) * Y * YD;
+                XL = Math.min(Math.max((0.025 + (DecelConstant2 * Math.abs(((XDistance - Xposition))))), 0.025), Speed) * X * XD;
+            } else {
+                YL = YSpeed * YD;
+                XL = Speed * XD;
+            }
+        } else {
+            if (Accel && ((Math.abs(Xposition) <= Math.abs((AccelDistance * 0.7071067)) || Math.abs(Yposition) <= Math.abs(AccelDistance)))) {
+                YL = Math.min(Math.max(AccelConstant * (Yposition * Yposition), 0.025), YSpeed) * Y * YD;
+                XL = Math.min(Math.max(AccelConstant2 * (Xposition * Xposition), 0.025), Speed) * X * XD;
+                telemetry.addData("Accel?", 1);
+                telemetry.update();
+            } else if (Decel && ((Math.abs(YDistance) - Math.abs(Yposition) <= Math.abs(DecelDistance) || Math.abs(XDistance) - Math.abs(Xposition) <= Math.abs(DecelDistance * 0.7071067)))) {
+                YL = Math.min(Math.max(0.025 + (DecelConstant * (YDistance - Yposition)), 0.025), YSpeed) * Y * YD;
+                XL = Math.min(Math.max((0.025 + (DecelConstant2 * ((XDistance - Xposition)))), 0.025), Speed) * X * XD;
+                telemetry.addData("Decel?", 1);
+                telemetry.update();
+            } else {
+                YL = YSpeed;
+                XL = Speed;
+                telemetry.addData("Neither?", 1);
+                telemetry.update();
+            }
+        }
+
+
+    }
+
+    private void GoTov2(double XDistance, double YDistance, double Speed, double MaintainAngle, double AccelDistance, double DecelDistance, boolean Accel, boolean Decel, double IMUGain, boolean Reset) {
+        if (Reset) {
+            motor_drive_flAsDcMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+            motor_drive_frAsDcMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+            motor_drive_blAsDcMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+            motor_drive_brAsDcMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+            motor_drive_flAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            motor_drive_frAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            motor_drive_blAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            motor_drive_brAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            Xposition = 0;
+            Yposition = 0;
+        } else {
+            DistanceTracker();
+            ResetTracker();
+        }
+        XPositionReset = Xposition;
+        YPositionReset = Yposition;
+        DistanceTracker();
+        YSpeed = Math.abs(Speed * 0.7071067);
+        AccelConstant = (Speed / AccelDistance);
+        AccelConstant2 = (Speed / (AccelDistance * 0.7071067));
+        DecelConstant = (((YSpeed - 0.025) / DecelDistance));
+        DecelConstant2 = (((Speed - 0.025) / (DecelDistance * 0.7071067)));
+        X = 1;
+        Y = 1;
+        XD = 1;
+        YD = 1;
+        if (!(XDistance == 0)) {
+
+            while (Math.abs(Xposition) <= Math.abs(XDistance) || Math.abs(Yposition) <= Math.abs(YDistance)) {
+                // telemetry.addData("Speed", Math.max(Math.min(Speed * ((Math.abs(Yposition) * 0.006) / Accelerate) - 0/*(Decelerate * (1 / (Math.abs(YDistance) - Math.abs(Yposition))))*/, 0.0001), Speed * 0.707106781 * Math.abs((YDistance / XDistance)) * Y));
+                angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
+                CurrentHeading = angles.firstAngle;
+
+                DistanceTracker();
+                SpeedCalculator(XDistance, YDistance, Speed, AccelDistance, DecelDistance, Accel, Decel);
+                MecanumFunction(YL, XL, (-MaintainAngle + CurrentHeading) * IMUGain);
+                if (isStopRequested()) {
+                    break;
+                }
+            }
+
+            if (Decel) {
+                YL = XL = 0;
+            }
+
+        } else if (XDistance == 0) {
+            while (Math.abs(Yposition) <= Math.abs(YDistance)) {
+                if (isStopRequested()) {
+                    MecanumFunction(0, 0, 0);
+                    break;
+                }
+                telemetry.addData("YPosition", Yposition);
+                telemetry.update();
+                // telemetry.addData("Speed", Math.max(Math.min(Speed * ((Math.abs(Yposition) * 0.006) / Accelerate) - 0/*(Decelerate * (1 / (Math.abs(YDistance) - Math.abs(Yposition))))*/, 0.0001), Speed * 0.707106781 * Math.abs((YDistance / XDistance)) * Y));
+                angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
+                CurrentHeading = angles.firstAngle;
+                DistanceTracker();
+                SpeedCalculator(XDistance, YDistance, Speed, AccelDistance, DecelDistance, Accel, Decel);
+                MecanumFunction(YL, 0, (-MaintainAngle + CurrentHeading) * IMUGain);
+            }
+
+            if (Decel) {
+                YL = XL = 0;
+            }
+
+        }
+    }
+
+    private void Neutral() {
+        righteye.setPosition(0.5);
+        lefteye.setPosition(0.5);
+        leftbrow.setPosition(0.5);
+        rightbrow.setPosition(0.5);
+    }
+
+
+    private void Right() {
+        righteye.setPosition(0.15);
+        lefteye.setPosition(0.15);
+    }
+
+
+    private void Mad() {
+        leftbrow.setPosition(0.65);
+        rightbrow.setPosition(0.3);
+    }
+
+
+    private void Left() {
+        righteye.setPosition(0.85);
+        lefteye.setPosition(0.85);
+    }
+
+    private void Happy() {
+        leftbrow.setPosition(0.3);
+        rightbrow.setPosition(0.65);
     }
 
     private void BulkCaching() {
@@ -377,6 +644,38 @@ public class MainTeleop extends LinearOpMode {
 
 
         }
+    }
+
+    private void ShootPowershots() {
+        double currentIMU;
+        currentIMU = CurrentHeading;
+        GoTov2(9, 0, 0.6, 0, 3, 3, true, true, 0.004, true);
+        MecanumFunction(0, 0, 0);
+        clarm.setPosition(0.12);
+        LeftLauncher.setPower(0.3);
+        RightLauncher.setPower(-0.3);
+//        sleep(500);
+        ramp.setTargetPosition(759);
+        ramp.setPower(0.6);
+        sleep(500);
+        RightLauncher.setPower(0.77);
+        sleep(150);
+        LeftLauncher.setPower(-0.3775);
+        sleep(800);
+        AngularAdjustment(currentIMU - 23, 0.012);
+        pusher.setPosition(0.41);
+        LeftLauncher.setPower(-0.3775);
+        RightLauncher.setPower(0.77);
+        sleep(520);
+        AngularAdjustment(currentIMU - 27, .012);
+        pusher.setPosition(0.775);
+        sleep(520);
+        AngularAdjustment(currentIMU - 31, 0.012);
+        pusher.setPosition(0.98);
+        sleep(520);
+        LeftLauncher.setPower(0);
+        RightLauncher.setPower(0);
+        pusher.setPosition(0);
     }
 
     private void Initialization() {
@@ -398,15 +697,12 @@ public class MainTeleop extends LinearOpMode {
 
         vuforia = ClassFactory.getInstance().createVuforia(parameters); //  <<<====  THIS LINE WAS MISSING
         // webcamName = hardwareMap.get(WebcamName.class, "Webcam 1");
-        clarm.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        clarm.setTargetPosition(0);
-        clarm.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         CurrentHeading = angles.firstAngle;
 
-        motor_drive_flAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        motor_drive_frAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        motor_drive_blAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        motor_drive_brAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+//        motor_drive_flAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+//        motor_drive_frAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+//        motor_drive_blAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+//        motor_drive_brAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
       /*  VuforiaTrackables targetsUltimateGoal = this.vuforia.loadTrackablesFromAsset("UltimateGoal");
         VuforiaTrackable blueTowerGoalTarget = targetsUltimateGoal.get(0);
         blueTowerGoalTarget.setName("Blue Tower Goal Target");
@@ -483,14 +779,16 @@ public class MainTeleop extends LinearOpMode {
         TimerD.reset();
         while ((TimerD.milliseconds() < 350)) {
 
-            // ANDREW: Consider the use of BulkCaching here since it is expensive to read all the motor positions if all you need is the imu angle
             BulkCaching();
             if (((-targetangle + CurrentHeading) >= 0.07 && (-targetangle + CurrentHeading) <= -0.07)) {
                 TimerD.reset();
             }
-            MecanumFunction(0, 0, IMUgain * (-targetangle + CurrentHeading), 0);
+            MecanumFunction(0, 0, IMUgain * (-targetangle + CurrentHeading));
+            if (isStopRequested()) {
+                break;
+            }
         }
-        MecanumFunction(0, 0, 0, 0);
+        MecanumFunction(0, 0, 0);
     }
 
     private void Shoot(double RP, double LP, double Timer, boolean Stop) {
@@ -501,6 +799,9 @@ public class MainTeleop extends LinearOpMode {
             LeftLauncher.setPower(LP);
             RightLauncher.setPower(RP);
             Conveyor.setPower(1);
+            if (isStopRequested()) {
+                break;
+            }
         }
 
         if (Stop == true) {
@@ -523,10 +824,10 @@ public class MainTeleop extends LinearOpMode {
             FinalAngle += LastValue - angles.firstAngle;
         }
         LastValue = angles.firstAngle;
-        telemetry.addData("FinalAngle", FinalAngle);
-        telemetry.addData("LastValue", LastValue);
-        telemetry.addData("CurrentValue", angles.firstAngle);
-        telemetry.update();
+        //  telemetry.addData("FinalAngle", FinalAngle);
+        // telemetry.addData("LastValue", LastValue);
+        //telemetry.addData("CurrentValue", angles.firstAngle);
+        //telemetry.update();
     }
 
     private void DistanceTracker() {
@@ -540,7 +841,7 @@ public class MainTeleop extends LinearOpMode {
         } else {
             XPositionP = 1;
         }
-        Yposition = (((((motor_drive_blAsDcMotor.getCurrentPosition() + motor_drive_brAsDcMotor.getCurrentPosition() + motor_drive_flAsDcMotor.getCurrentPosition() + motor_drive_frAsDcMotor.getCurrentPosition()) * 0.25) * 0.00208333333) * 15.75) - YPositionReset);//((((motor_drive_brAsDcMotor.getCurrentPosition() + motor_drive_blAsDcMotor.getCurrentPosition() + motor_drive_flAsDcMotor.getCurrentPosition() + motor_drive_frAsDcMotor.getCurrentPosition()) / 4) / 480) * 12.566);
+        Yposition = (((((motor_drive_blAsDcMotor.getCurrentPosition() + motor_drive_brAsDcMotor.getCurrentPosition() + motor_drive_flAsDcMotor.getCurrentPosition() + motor_drive_frAsDcMotor.getCurrentPosition()) * 0.25) * 0.00208333333) * 12.8) - YPositionReset);//((((motor_drive_brAsDcMotor.getCurrentPosition() + motor_drive_blAsDcMotor.getCurrentPosition() + motor_drive_flAsDcMotor.getCurrentPosition() + motor_drive_frAsDcMotor.getCurrentPosition()) / 4) / 480) * 12.566);
         Xposition = ((((motor_drive_flAsDcMotor.getCurrentPosition() - motor_drive_blAsDcMotor.getCurrentPosition()) * 0.00208333333) * 11.5 * .5) - (XPositionReset));
 
     }
@@ -632,14 +933,17 @@ public class MainTeleop extends LinearOpMode {
                 telemetry.addData("fart", (Math.min(Math.max(Speed * ((Math.abs(Xposition) * 1) / XAccelerate) * (((Math.abs(XDistance) - Math.abs(Xposition)) * 0.6) / XDecelerate), 0.49), Speed) * X * XD));
                 //    telemetry.addData("fart", (((Math.abs(XDistance) - Math.abs(Xposition)) * 0.6) / XDecelerate));
                 telemetry.update();
-                MecanumFunction(Math.min(Math.max(Speed * ((Math.abs(Yposition) * 0.6) / Accelerate) * (((Math.abs(YDistance) - Math.abs(Yposition)) * 0.4) / Decelerate), 0.05), YSpeed) * Y * YD, Math.min(Math.max(Speed * ((Math.abs(Xposition) * 1) / XAccelerate) * (((Math.abs(XDistance) - Math.abs(Xposition)) * 0.7) / XDecelerate), 0.49), Speed) * X * XD, (-MaintainAngle + CurrentHeading) * IMUGain, 0);
+                MecanumFunction(Math.min(Math.max(Speed * ((Math.abs(Yposition) * 0.6) / Accelerate) * (((Math.abs(YDistance) - Math.abs(Yposition)) * 0.4) / Decelerate), 0.05), YSpeed) * Y * YD, Math.min(Math.max(Speed * ((Math.abs(Xposition) * 1) / XAccelerate) * (((Math.abs(XDistance) - Math.abs(Xposition)) * 0.7) / XDecelerate), 0.49), Speed) * X * XD, (-MaintainAngle + CurrentHeading) * IMUGain);
 
 
                 YSpeed = Math.abs(Speed * 0.707106781 * Math.abs((YDistance / XDistance)) * Y);
+                if (isStopRequested()) {
+                    break;
+                }
             }
 
             if (Decel) {
-                MecanumFunction(0, 0, 0, 0);
+                MecanumFunction(0, 0, 0);
             }
 
         } else if (XDistance == 0) {
@@ -678,49 +982,55 @@ public class MainTeleop extends LinearOpMode {
                     Decelerate = ((Math.abs(YDistance) - Math.abs(Yposition)) * 0.4);
                 }
 
-                MecanumFunction(Math.min(Math.max(Speed * ((Math.abs(Yposition) * 0.6) / Accelerate) * (((Math.abs(YDistance) - Math.abs(Yposition)) * 0.4) / Decelerate), 0.05), Speed) * Y * YD, 0, (-MaintainAngle + CurrentHeading) * IMUGain, 0);
-
+                MecanumFunction(Math.min(Math.max(Speed * ((Math.abs(Yposition) * 0.6) / Accelerate) * (((Math.abs(YDistance) - Math.abs(Yposition)) * 0.4) / Decelerate), 0.05), Speed) * Y * YD, 0, (-MaintainAngle + CurrentHeading) * IMUGain);
+                if (isStopRequested()) {
+                    break;
+                }
             }
 
             if (Decel) {
-                MecanumFunction(0, 0, 0, 0);
+                MecanumFunction(0, 0, 0);
             }
 
 
         }
     }
 
-
-    private void MecanumFunction(double YL, double XL, double XR, double ContinuosIMU) {
-        double Correction;
-        double NXL;
-        double NYL;
-        double NXR = 0;
-        double IMUGain = -0.025;
-
-        if (gamepad1.right_stick_x != 0) {
-            MaintainAngle = ContinuosIMU;
-            TimerA.reset();
+    private void MecanumFunction(double YL, double XL, double XR) {
+        if (YL != 0) {
+            Range.clip(XL, -0.5, 0.5);
+            Range.clip(XR, -0.5, 0.5);
+        } else if (XL != 0) {
+            Range.clip(YL, -0.5, 0.5);
+            Range.clip(XR, -0.5, 0.5);
+        } else if (XR != 0) {
+            Range.clip(YL, -0.5, 0.5);
+            Range.clip(XL, -0.5, 0.5);
         }
-        if (TimerA.seconds() >= .2) {
-            NXR = (ContinuosIMU - MaintainAngle) * IMUGain;
+
+        if (YL < 0) {
+            YL = -YL * YL;
         } else {
-            MaintainAngle = ContinuosIMU;
+            YL *= YL;
         }
-        XR += NXR;
-        telemetry.addData("NewXR", NXR);
-        telemetry.addData("IMU", ContinuosIMU);
-        telemetry.update();
+
+        if (XL < 0) {
+            XL = -XL * XL;
+        } else {
+            XL *= XL;
+        }
+
+        if (XR < 0) {
+            XR = -XR * XR;
+        } else {
+            XR *= XR;
+        }
 
         flScale = (-YL - (-XL - XR));
         blScale = (YL - (-XL + XR));
         frScale = (-YL + XL - XR);
         brScale = (YL + XL + XR);
 
-        /*motor_drive_flAsDcMotor.setPower(-gamepad1.left_stick_y + (gamepadxpolar * (gamepad1.left_stick_x * gamepad1.left_stick_x)) + gamepad1.right_stick_x);
-            motor_drive_blAsDcMotor.setPower(gamepad1.left_stick_y + (gamepadxpolar * (gamepad1.left_stick_x * gamepad1.left_stick_x)) - gamepad1.right_stick_x);
-            motor_drive_frAsDcMotor.setPower(-gamepad1.left_stick_y + (gamepadxpolar * (gamepad1.left_stick_x * gamepad1.left_stick_x)) - gamepad1.right_stick_x);
-            motor_drive_brAsDcMotor.setPower(gamepad1.left_stick_y + (gamepadxpolar * (gamepad1.left_stick_x * gamepad1.left_stick_x)) + gamepad1.right_stick_x);*/
 
         if ((-YL - (-XL - XR)) > 1 || (-YL - (-XL - XR)) < -1) {
             flOverload = true;
@@ -763,121 +1073,611 @@ public class MainTeleop extends LinearOpMode {
 
         }
         if (frOverload == false && flOverload == false && brOverload == false && blOverload == false) {
-            motor_drive_flAsDcMotor.setPower((-YL - (-XL - XR)));
-            motor_drive_blAsDcMotor.setPower(-(YL - (-XL + XR)));
-            motor_drive_frAsDcMotor.setPower((-YL - XL - XR));
-            motor_drive_brAsDcMotor.setPower(-(YL - XL + XR));
+            motor_drive_flAsDcMotor.setPower(Range.clip((YL - (-XL - XR)), -1, 1));
+            motor_drive_blAsDcMotor.setPower(Range.clip(-(-YL - (-XL + XR)), -1, 1));
+            motor_drive_frAsDcMotor.setPower((Range.clip((YL - XL - XR), -1, 1)));
+            motor_drive_brAsDcMotor.setPower(Range.clip(-(-YL - XL + XR), -1, 1));
         } else {
-            motor_drive_flAsDcMotor.setPower((-mYL - (-mXL - mXR)));
-            motor_drive_blAsDcMotor.setPower(-(mYL - (-mXL + mXR)));
-            motor_drive_frAsDcMotor.setPower((-mYL - mXL - mXR));
-            motor_drive_brAsDcMotor.setPower(-(mYL - mXL + mXR));
+            motor_drive_flAsDcMotor.setPower(Range.clip((YL - (-XL - XR)), -1, 1));
+            motor_drive_blAsDcMotor.setPower(Range.clip(-(-YL - (-XL + XR)), -1, 1));
+            motor_drive_frAsDcMotor.setPower((Range.clip((YL - XL - XR), -1, 1)));
+            motor_drive_brAsDcMotor.setPower(Range.clip(-(-YL - XL + XR), -1, 1));
+
+            /*
+            motor_drive_flAsDcMotor.setPower((YL - (-XL - XR)));
+            motor_drive_blAsDcMotor.setPower(-(-YL - (-XL + XR)));
+            motor_drive_frAsDcMotor.setPower((YL - XL - XR));
+            motor_drive_brAsDcMotor.setPower(-(-YL - (-XL + XR)));
+*/
         }
 
 
     }
 
-    private void PersonalityStateMachine() {
-        switch (CurrentState) {
-            case MOVE_RIGHT:
-                if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
-                    telemetry.addData("strafe and turn right", CurrentState);
-                    telemetry.update();
-                } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
-                    CurrentState = State.MOVE_LEFT;
-                } else if (gamepad1.left_stick_y < 0) {
-                    CurrentState = State.MOVE_FORWARD;
-                } else if (gamepad1.left_stick_y > 0) {
-                    CurrentState = State.MOVE_BACKWARDS;
-                } else if (RightLauncher.getPower() < 0) {
-                    CurrentState = State.SHOOT;
-                } else if (intake.getPower() > 0) {
-                    CurrentState = State.INTAKE;
+
+    private void MagFull(double Yl, double Xl, double Timeout, double MaintainAngle, double IMUGain) {
+        if (pusher.getPosition() < 0.5) {
+            boolean gamepad2a = false;
+            double v = 1;
+            boolean gamepad2xafter = false;
+            ClawVariable = 1;
+            // ANDREW THINK ABOUT WHAT SHOULD BE CHECKED BEFORE MOVING THE RAMP DOWN?
+            // ALSO, PROBABLY GOOD TO START SPINNING THE LAUNCHER WHEELS IN AT THE START OF THIS FUNCTION
+            if (pusher.getPosition() < 0.5) {
+                ramp.setTargetPosition(0);
+                ramp.setPower(-0.5);
+            }
+
+            /*while (ramp.isBusy()) {
+                if (gamepad1.left_trigger > 0.3){
+                    MecanumFunction(-gamepad1.left_stick_y * 0.5, gamepad1.left_stick_x * 0.5, gamepad1.right_stick_x * 0.5);
                 } else {
-                    CurrentState = State.IDLE;
+                    MecanumFunction(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+                }
+                if (isStopRequested()) {
+                    break;
+                }
+            }*/
+            ElapsedTime MagTimer = new ElapsedTime();
+            while (MagTimer.seconds() < Timeout) {
+                if (gamepad2.left_bumper) {
+                    intake.setPower(-0.6);
+                } else {
+                    intake.setPower(0.6);
+                }
+                if (gamepad2.dpad_up) {
+                    break;
+                }
+                /*if (gamepad2.dpad_right) {
+                    IntakeCurrentState = State.BREAK;
+                }
+                if (gamepad2.dpad_up){
+                    IntakeCurrentState = State.MOVE_TO_SHOOT;
+                    break;
+                }*/
+                gamepad2a = gamepad2.a;
+                if (gamepad2.a && !gamepad2a) {
+                    v *= -1;
+                }
+                if (v > 0) {
+                    if (gamepad2.x && !gamepad2xafter) {
+                        clarmvariable = clarmvariable * -1;
+                    }
+                    if (clarmvariable > 0 && clarmvariable < 5) {
+                        clarm.setPosition(0.08);
+                    } else if (clarmvariable > -5 && clarmvariable < 0) {
+                        clarm.setPosition(0.55);
+                    }
+                } else {
+                    clarm.setPosition(0);
+                }
+
+                if (gamepad2.b && !gamepadbAfter) {
+                    ClawVariable = ClawVariable * -1;
+                }
+                if (ClawVariable > 0) {
+                    claw.setPosition(0);
+                } else if (ClawVariable < 0) {
+                    claw.setPosition(1);
+                }
+                gamepadbAfter = gamepad2.b;
+
+                gamepad2xafter = gamepad2.x;
+                if (gamepad1.left_trigger > 0.3) {
+                    MecanumFunction(-gamepad1.left_stick_y * 0.5 / 2, gamepad1.left_stick_x * 0.5 / 2, gamepad1.right_stick_x * 0.5 / 2);
+                } else {
+                    MecanumFunction(-gamepad1.left_stick_y / 2, gamepad1.left_stick_x / 2, gamepad1.right_stick_x / 2);
+                }
+
+                normalizedColors = ((NormalizedColorSensor) rangeSensor_REV_ColorRangeSensor).getNormalizedColors();
+                telemetry.addData("Hue", Double.parseDouble(JavaUtil.formatNumber(normalizedColors.red, 3)));
+                telemetry.update();
+                LeftLauncher.setPower(0.15);
+                RightLauncher.setPower(-0.15);
+                if (Double.parseDouble(JavaUtil.formatNumber(normalizedColors.red, 3)) < 0.0175) {
+                    MagTimer.reset();
+                }
+            }
+            FullMag = true;
+            //MecanumFunction(0, 0, 0, 0);
+            intake.setPower(-.25);
+
+        /*ramp.setTargetPosition(822);
+        ramp.setPower(0.7);
+        sleep(1000);*/
+        }
+    }
+
+    private void IntakeAndShoot() {
+        switch (IntakeAndShootCurrentState) {
+            case INTAKE_IDLE:
+                if ((!gamepad2.y) && (!gamepad2.dpad_right) && (!gamepad2.dpad_up) && (!gamepad2.dpad_left) && (gamepad2.left_trigger < 0.3) && (VPTimer == true)) {
+                    RightLauncher.setPower(0);
+                    LeftLauncher.setPower(0);
+                    pusher.setPosition(0);
+                    ramp.setTargetPosition(0);
+                    ramp.setPower(-0.2);
+                    intake.setPower(0);
+                    telemetry.addData("idle", IntakeCurrentState);
+                    telemetry.update();
+                } else if (gamepad2.y) {
+                    IntakeAndShootCurrentState = State.DISC_COLLECTION;
+                } else if (gamepad2.dpad_up || FullMag == true) {
+                    IntakeAndShootCurrentState = State.RAMP_TO_SHOOT;
+                } else if (gamepad2.dpad_left) {
+                    IntakeAndShootCurrentState = State.POWERSHOT_RAMP;
+                } else {    //ANDREW, in other code below, there is a check before going to SHOOT_2, why is this not done here?
+                    IntakeAndShootCurrentState = State.SHOOT_2;
                 }
                 break;
 
+            case DISC_COLLECTION:
+                if (gamepad2.y) {
+                    LeftLauncher.setPower(0.1);
+                    RightLauncher.setPower(-0.1);
+                    MagFull(0, 0, 0.35, FinalAngle, 0.006);
+                    telemetry.addData("intake", IntakeCurrentState);
+                    telemetry.update();
+                    if (gamepad2.dpad_up) {
+                        IntakeAndShootCurrentState = State.RAMP_TO_SHOOT;
+                    }
+                } else if ((((Math.abs(840 - ramp.getCurrentPosition())) < 5) || (Math.abs(835 - ramp.getCurrentPosition())) < 5) && !VPTimer) {
+                    IntakeAndShootCurrentState = State.SHOOT_2;
+                } else if (gamepad2.dpad_up || FullMag == true) {
+                    IntakeAndShootCurrentState = State.RAMP_TO_SHOOT;
+                } else if (gamepad2.dpad_left) {
+                    IntakeAndShootCurrentState = State.POWERSHOT_RAMP;
+                } else {
+                    IntakeAndShootCurrentState = State.INTAKE_IDLE;
+                }
+                break;
+
+            case RAMP_TO_SHOOT:
+                if (gamepad2.dpad_up || FullMag == true) {
+                    MecanumFunction(-gamepad1.left_stick_y / 2, gamepad1.left_stick_x / 2, gamepad1.right_stick_x / 2);
+                    ramp.setTargetPosition(840);
+                    ramp.setPower(0.7);
+                    LeftLauncher.setPower(0.1);
+                    RightLauncher.setPower(-0.1);
+                    while (ramp.isBusy()) {   // ANDREW, can you use ramp.isBusy() instead of this compare?  It would be a better way to handle this
+                        MecanumFunction(-gamepad1.left_stick_y / 2, gamepad1.left_stick_x / 2, gamepad1.right_stick_x / 2);
+                    }
+                    FullMag = false;
+                    telemetry.addData("move to shoot", IntakeCurrentState);
+                    telemetry.update();
+                    VPTimer = false;
+                    //PusherTimer.reset();
+                } else if ((((Math.abs(840 - ramp.getCurrentPosition())) < 5)) && !VPTimer) {
+                    IntakeAndShootCurrentState = State.SHOOT_2;
+                } else if (gamepad2.dpad_left) {
+                    IntakeAndShootCurrentState = State.RAMP_TO_SHOOT;
+                } else if (gamepad2.y) {
+                    IntakeAndShootCurrentState = State.DISC_COLLECTION;
+                } else {
+                    IntakeAndShootCurrentState = State.INTAKE_IDLE;
+                }
+                break;
+
+            case POWERSHOT_RAMP:
+                if (gamepad2.dpad_left) {
+                    MecanumFunction(-gamepad1.left_stick_y / 2, gamepad1.left_stick_x / 2, gamepad1.right_stick_x / 2);
+                    ramp.setTargetPosition(835);
+                    ramp.setPower(0.5);
+                    LeftLauncher.setPower(0.1);
+                    RightLauncher.setPower(-0.1);
+                    while (ramp.getCurrentPosition() < 800) {
+                        MecanumFunction(-gamepad1.left_stick_y / 2, gamepad1.left_stick_x / 2, gamepad1.right_stick_x / 2);
+                        FullMag = true;
+                    }
+                    FullMag = false;
+                    telemetry.addData("powershot", IntakeCurrentState);
+                    telemetry.update();
+                } else if ((((Math.abs(840 - ramp.getCurrentPosition())) < 5) || (Math.abs(835 - ramp.getCurrentPosition())) < 5) && !VPTimer) {
+                    IntakeAndShootCurrentState = State.SHOOT_2;
+                } else if (gamepad2.dpad_up || FullMag == true) {
+                    IntakeAndShootCurrentState = State.RAMP_TO_SHOOT;
+                } else if (gamepad2.y) {
+                    IntakeAndShootCurrentState = State.DISC_COLLECTION;
+                } else {
+                    IntakeAndShootCurrentState = State.INTAKE_IDLE;
+                }
+                break;
+
+            case SHOOT_2:
+                if (((Math.abs(840 - ramp.getCurrentPosition())) < 5) && !VPTimer) {
+                    intake.setPower(0);
+                    LeftLauncher.setPower(-0.4);
+                    RightLauncher.setPower(0.8);
+                    //      ElapsedTime PusherTimer = new ElapsedTime();
+                    while (!VPTimer) {   //ANDREW, you should probably not start this timer until the left_trigger is pressed.  Also, you are not able to move when you are in this state...  This is a problem
+                        telemetry.addData("pusher position", PusherTimer.milliseconds());
+                        telemetry.update();
+                        MecanumFunction(-gamepad1.left_stick_y / 2, gamepad1.left_stick_x / 2, gamepad1.right_stick_x / 2);
+                        if (gamepad2.left_trigger > 0.3 && ramp.getCurrentPosition() > 300) {
+                            pusher.setPosition(0.98);
+                            ElapsedTime PusherTimer = new ElapsedTime();
+
+                        }
+                        if (!((((Math.abs(840 - ramp.getCurrentPosition())) < 5) || (Math.abs(835 - ramp.getCurrentPosition())) < 5) && !VPTimer)) {
+                            break;
+                        }
+                        if (pusher.getPosition() < 0.5) {
+                            PusherTimer.reset();
+                        }
+                        if (PusherTimer.milliseconds() > 1800) {
+                            VPTimer = true;
+                        }
+                        telemetry.addData("pusher position", PusherTimer.milliseconds());
+                        telemetry.update();
+                        telemetry.addData("shoot", IntakeCurrentState);
+                        telemetry.update();
+                    }
+
+                } else if (gamepad2.dpad_left) {
+                    IntakeAndShootCurrentState = State.POWERSHOT_RAMP;
+                } else if (gamepad2.dpad_up || FullMag == true) {
+                    IntakeAndShootCurrentState = State.RAMP_TO_SHOOT;
+                } else if (gamepad2.y) {
+                    IntakeAndShootCurrentState = State.DISC_COLLECTION;
+                } else {
+                    IntakeAndShootCurrentState = State.INTAKE_IDLE;
+                }
+                break;
+        }
+    }
+
+    /*private void IntakeStateMachine() {
+        boolean gamepad1Yafter = false;
+        boolean gamepad2dpadleftafter = false;
+        boolean gamepad2dpaddownafter = false;
+        switch (IntakeCurrentState) {
+            case DISC_COLLECTION:
+                if (gamepad2.y) {
+                    LeftLauncher.setPower(0.1);
+                    RightLauncher.setPower(-0.1);
+                    MagFull(0,0,0.35, FinalAngle,0.006);
+                    if (gamepad2.dpad_left && !gamepad2dpadleftafter){
+                        n  = 1;
+                    }
+                    gamepad2dpadleftafter = gamepad2.dpad_left;
+                    if (gamepad2.dpad_down && !gamepad2dpaddownafter){
+                        n = -1;
+                    }
+                    gamepad2dpaddownafter = gamepad2.dpad_down;
+                    if (n == 1){
+                        ramp.setTargetPosition(840);
+                        ramp.setPower(0.8);
+                    }
+                    if (n == -1){
+                        ramp.setTargetPosition(800);
+                        ramp.setPower(0.8);
+                    }
+                    while(ramp.isBusy()){
+
+                        if (gamepad2.right_trigger > 0.3){
+                            pusher.setPosition(0);
+                        }
+                        if (gamepad2.left_trigger > 0.3){
+                            pusher.setPosition(0.98);
+                        }
+                        if (gamepad1.x){
+                            pusher.setPosition(0.41);
+                        }
+                        if(gamepad1.y){
+                            pusher.setPosition(0.775);
+                        }
+                        if (gamepad1.b){
+                            pusher.setPosition(0.98);
+                        }
+                        gamepad1Yafter = gamepad1.y;
+                        LeftLauncher.setPower(0.1);
+                        RightLauncher.setPower(-0.1);
+                        if (gamepad1.left_trigger > 0.3){
+                           // MecanumFunction(-gamepad1.left_stick_y * 0.5, gamepad1.left_stick_x * 0.5, gamepad1.right_stick_x * 0.5);
+                        } else {
+                           // MecanumFunction(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+                        }
+                        if (isStopRequested()) {
+                            break;
+                        }
+                        if (gamepad2.dpad_left && !gamepad2dpadleftafter){
+                            n = 1;
+                        }
+                        gamepad2dpadleftafter = gamepad2.dpad_left;
+                        if (gamepad2.dpad_down && !gamepad2dpaddownafter){
+                            n = -1;
+                        }
+                        gamepad2dpaddownafter = gamepad2.dpad_down;
+                        if (n == 1){
+                            ramp.setTargetPosition(840);
+                            ramp.setPower(0.8);
+                        }
+                        if (n == -1){
+                            ramp.setTargetPosition(800);
+                            ramp.setPower(0.8);
+                        }
+                    }
+                    LeftLauncher.setPower(0);
+                    RightLauncher.setPower(0);
+                    telemetry.addData("Disc collection", IntakeCurrentState);
+                    telemetry.update();
+
+                    // ANDREW CHECK IF THIS && IS THE CORRECT OPERATOR
+                } else if ((gamepad2.dpad_up || FullMag == true) && !gamepad2.dpad_right && !gamepad2.y) {
+                    IntakeCurrentState = State.MOVE_TO_SHOOT;
+                } else if (gamepad2.dpad_right) {
+                    IntakeCurrentState = State.BREAK;
+                } else if (gamepad2.dpad_left) {
+                    IntakeCurrentState = State.SHOOT_POWERSHOT;
+                } else {
+                    IntakeCurrentState = State.INTAKE_IDLE;
+                }
+                break;
+
+            case MOVE_TO_SHOOT:
+                // ANDREW CHECK IF THIS && IS THE CORRECT OPERATOR
+                ramp.setPower(0.1);
+                if ((gamepad2.dpad_up || FullMag == true) && !gamepad2.dpad_right && !gamepad2.y) {
+                    clarm.setPosition(0.12);
+                    while (ramp.isBusy()) {
+                        if (gamepad2.right_trigger > 0.3) {
+                            pusher.setPosition(0);
+                        }
+                        if (gamepad2.left_trigger > 0.3) {
+                            pusher.setPosition(0.98);
+                        }
+                        if (gamepad1.x) {
+                            pusher.setPosition(0.41);
+                        }
+                        if (gamepad1.y) {
+                            pusher.setPosition(0.775);
+                        }
+                        if (gamepad1.b) {
+                            pusher.setPosition(0.98);
+                        }
+                        if (gamepad2.dpad_left && !gamepad2dpadleftafter) {
+                            n = 1;
+                        }
+                        gamepad2dpadleftafter = gamepad2.dpad_left;
+                        if (gamepad2.dpad_down && !gamepad2dpaddownafter) {
+                            n = -1;
+                        }
+                        gamepad2dpaddownafter = gamepad2.dpad_down;
+                        if (n == 1) {
+                            if (n == 1) {
+                                ramp.setTargetPosition(840);
+                                ramp.setPower(0.8);
+                            }
+                            if (n == -1) {
+                                ramp.setTargetPosition(800);
+                                ramp.setPower(0.8);
+                            }
+                            gamepad1Yafter = gamepad1.y;
+                            LeftLauncher.setPower(0.1);
+                            RightLauncher.setPower(-0.1);
+                            if (gamepad1.left_trigger > 0.3) {
+                             //   MecanumFunction(-gamepad1.left_stick_y * 0.5, gamepad1.left_stick_x * 0.5, gamepad1.right_stick_x * 0.5);
+                            } else {
+                           //     MecanumFunction(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+                            }
+                            if (isStopRequested()) {
+                                break;
+                            }
+                        }
+                        if (gamepad2.dpad_left && !gamepad2dpadleftafter) {
+                            n = 1;
+                        }
+                        gamepad2dpadleftafter = gamepad2.dpad_left;
+                        if (gamepad2.dpad_down && !gamepad2dpaddownafter) {
+                            n = -1;
+                        }
+                        gamepad2dpaddownafter = gamepad2.dpad_down;
+                        if (n == 1) {
+                            ramp.setTargetPosition(840);
+                            ramp.setPower(0.8);
+                        }
+                        if (n == -1) {
+                            ramp.setTargetPosition(800);
+                            ramp.setPower(0.8);
+                        }
+                        //sleep(500);
+                        telemetry.addData("Move to shoot", IntakeCurrentState);
+                        telemetry.update();
+                    }
+                } else if (gamepad2.y){
+                    IntakeCurrentState = State.DISC_COLLECTION;
+                } else if (gamepad2.dpad_right) {
+                    IntakeCurrentState = State.BREAK;
+                } else if (gamepad2.dpad_left) {
+                    IntakeCurrentState = State.SHOOT_POWERSHOT;
+                }else {
+                    IntakeCurrentState = State.INTAKE_IDLE;
+                }
+                break;
+
+            case SHOOT_POWERSHOT:
+                /*
+                if (gamepad2.dpad_left) {
+
+                } else if (gamepad2.y){
+                    IntakeCurrentState = State.DISC_COLLECTION;
+                } else if (gamepad2.dpad_right) {
+                    IntakeCurrentState = State.BREAK;
+                    // ANDREW THIS ELSE IF CONDITION DOESN'T LOOK RIGHT.  SHOULD BE ABLE TO MOVE TO SHOOT POWERSHOT INDEPENDENT OF THE FULLMAG CONDITION
+                } else if ((gamepad2.dpad_up || FullMag == true) && !gamepad2.dpad_right && !gamepad2.y) {
+                    IntakeCurrentState = State.MOVE_TO_SHOOT;
+                }else {
+                    IntakeCurrentState = State.INTAKE_IDLE;
+                }
+
+
+                break;
+
+            case BREAK:
+                if (gamepad2.dpad_right) {
+                    LeftLauncher.setPower(0);
+                    RightLauncher.setPower(0);
+
+                    // ANDREW ETHAN SAID THAT HE WOULD LIKE THE RAMP TO NOT MOVE DURING BREAK ACTUALLY, BREAK STATE IS BASICALLY THE SAME AS INTAKE IDLE SO MIGHT BE A SUPERFLUOUS STATE
+                    telemetry.addData("Break", IntakeCurrentState);
+                    telemetry.update();
+                }
+                else if (gamepad2.y) {
+                    IntakeCurrentState = State.DISC_COLLECTION;
+                } else if ((FullMag = true || gamepad2.dpad_up) && !gamepad2.dpad_right && !gamepad2.y) {
+                    IntakeCurrentState = State.MOVE_TO_SHOOT;
+                } else if (gamepad2.dpad_left) {
+                    IntakeCurrentState = State.SHOOT_POWERSHOT;
+                }else {
+                    IntakeCurrentState = State.INTAKE_IDLE;
+                }
+                break;
+
+            case INTAKE_IDLE:
+                if ((!FullMag) && (!gamepad2.y) && (!gamepad2.dpad_right) && (!gamepad2.dpad_up) && (!gamepad2.dpad_left) && (ramp.getCurrentPosition() < 100)) {
+                    //if (pusher.getPosition() != 0) {
+                   //     pusher.setPosition(0);
+                 //   }
+                    LeftLauncher.setPower(0);
+                    RightLauncher.setPower(0);
+
+                // ANDREW PROBABLY WANT TO SHUT OFF A COUPLE MORE THINGS DURING THIS IDLE STATE, WHAT ELSE SHOULD BE STOPPED?
+                    intake.setPower(0);
+                    telemetry.addData("Idle", IntakeCurrentState);
+                    telemetry.update();
+                } else if (gamepad2.y) {
+                    IntakeCurrentState = State.DISC_COLLECTION;
+                } else if (gamepad2.dpad_right) {
+                    IntakeCurrentState = State.BREAK;
+                } else if (gamepad2.dpad_left) {
+                    IntakeCurrentState = State.SHOOT_POWERSHOT;
+                } else if ((FullMag == true || gamepad2.dpad_up) && !gamepad2.dpad_right && !gamepad2.y){
+                    IntakeCurrentState = State.MOVE_TO_SHOOT;
+                }
+                break;
+        }
+
+    }*/
+
+    private void PersonalityStateMachine() {
+        switch (PersonalityCurrentState) {
+            case MOVE_RIGHT:
+                if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                    Right();
+                    leftbrow.setPosition(0.5);
+                    rightbrow.setPosition(0.5);
+                } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                    PersonalityCurrentState = State.MOVE_LEFT;
+                } else if (gamepad1.left_stick_y < 0) {
+                    PersonalityCurrentState = State.MOVE_FORWARD;
+                } else if (gamepad1.left_stick_y > 0) {
+                    PersonalityCurrentState = State.MOVE_BACKWARDS;
+                } else if (RightLauncher.getPower() > 0) {
+                    PersonalityCurrentState = State.SHOOT;
+                } else if (intake.getPower() > 0) {
+                    PersonalityCurrentState = State.INTAKE;
+                } else {
+                    PersonalityCurrentState = State.PERSONALITY_IDLE;
+                }
+                break;
+
+
             case MOVE_LEFT:
                 if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
-                    telemetry.addData("strafe or turn", CurrentState);
-                    telemetry.update();
+                    Left();
+                    leftbrow.setPosition(0.5);
+                    rightbrow.setPosition(0.5);
                 } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
-                    CurrentState = State.MOVE_RIGHT;
+                    PersonalityCurrentState = State.MOVE_RIGHT;
                 } else if (gamepad1.left_stick_y < 0) {
-                    CurrentState = State.MOVE_FORWARD;
+                    PersonalityCurrentState = State.MOVE_FORWARD;
                 } else if (gamepad1.left_stick_y > 0) {
-                    CurrentState = State.MOVE_BACKWARDS;
-                } else if (RightLauncher.getPower() < 0) {
-                    CurrentState = State.SHOOT;
+                    PersonalityCurrentState = State.MOVE_BACKWARDS;
+                } else if (RightLauncher.getPower() > 0) {
+                    PersonalityCurrentState = State.SHOOT;
                 } else if (intake.getPower() > 0) {
-                    CurrentState = State.INTAKE;
+                    PersonalityCurrentState = State.INTAKE;
                 } else {
-                    CurrentState = State.IDLE;
+                    PersonalityCurrentState = State.PERSONALITY_IDLE;
                 }
                 break;
 
             case MOVE_FORWARD:
                 if (gamepad1.left_stick_y < 0) {
-                    telemetry.addData("move forward", CurrentState);
-                    telemetry.update();
+                    Neutral();
                 } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
-                    CurrentState = State.MOVE_RIGHT;
+                    PersonalityCurrentState = State.MOVE_RIGHT;
                 } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
-                    CurrentState = State.MOVE_LEFT;
+                    PersonalityCurrentState = State.MOVE_LEFT;
                 } else if (gamepad1.left_stick_y > 0) {
-                    CurrentState = State.MOVE_BACKWARDS;
-                } else if (RightLauncher.getPower() < 0) {
-                    CurrentState = State.SHOOT;
+                    PersonalityCurrentState = State.MOVE_BACKWARDS;
+                } else if (RightLauncher.getPower() > 0) {
+                    PersonalityCurrentState = State.SHOOT;
                 } else if (intake.getPower() > 0) {
-                    CurrentState = State.INTAKE;
+                    PersonalityCurrentState = State.INTAKE;
                 } else {
-                    CurrentState = State.IDLE;
+                    PersonalityCurrentState = State.PERSONALITY_IDLE;
                 }
                 break;
 
             case MOVE_BACKWARDS:
                 if (gamepad1.left_stick_y > 0) {
-                    telemetry.addData("move backwards", CurrentState);
-                    telemetry.update();
+                    Left();
                 } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
-                    CurrentState = State.MOVE_RIGHT;
+                    PersonalityCurrentState = State.MOVE_RIGHT;
                 } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
-                    CurrentState = State.MOVE_LEFT;
+                    PersonalityCurrentState = State.MOVE_LEFT;
                 } else if (gamepad1.left_stick_y < 0) {
-                    CurrentState = State.MOVE_FORWARD;
-                } else if (RightLauncher.getPower() < 0) {
-                    CurrentState = State.SHOOT;
+                    PersonalityCurrentState = State.MOVE_FORWARD;
+                } else if (RightLauncher.getPower() > 0) {
+                    PersonalityCurrentState = State.SHOOT;
                 } else if (intake.getPower() > 0) {
-                    CurrentState = State.INTAKE;
+                    PersonalityCurrentState = State.INTAKE;
                 } else {
-                    CurrentState = State.IDLE;
+                    PersonalityCurrentState = State.PERSONALITY_IDLE;
                 }
                 break;
 
             case SHOOT:
-                if (RightLauncher.getPower() < 0) {
-                    telemetry.addData("shoot", CurrentState);
-                    telemetry.update();
+                if (RightLauncher.getPower() > 0) {
+                    Mad();
+                    lefteye.setPosition(0.5);
+                    righteye.setPosition(0.5);
                 } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
-                    CurrentState = State.MOVE_RIGHT;
+                    PersonalityCurrentState = State.MOVE_RIGHT;
                 } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
-                    CurrentState = State.MOVE_LEFT;
+                    PersonalityCurrentState = State.MOVE_LEFT;
                 } else if (gamepad1.left_stick_y < 0) {
-                    CurrentState = State.MOVE_FORWARD;
+                    PersonalityCurrentState = State.MOVE_FORWARD;
                 } else if (gamepad1.left_stick_y > 0) {
-                    CurrentState = State.MOVE_BACKWARDS;
+                    PersonalityCurrentState = State.MOVE_BACKWARDS;
                 } else if (intake.getPower() > 0) {
-                    CurrentState = State.INTAKE;
+                    PersonalityCurrentState = State.INTAKE;
                 } else {
-                    CurrentState = State.IDLE;
+                    PersonalityCurrentState = State.PERSONALITY_IDLE;
                 }
                 break;
 
             case INTAKE:
-                if (intake.getPower() > 0) {
+                if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                    PersonalityCurrentState = State.MOVE_RIGHT;
+                } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                    PersonalityCurrentState = State.MOVE_LEFT;
+                } else if (gamepad1.left_stick_y < 0) {
+                    PersonalityCurrentState = State.MOVE_FORWARD;
+                } else if (gamepad1.left_stick_y > 0) {
+                    PersonalityCurrentState = State.MOVE_BACKWARDS;
+                } else if (intake.getPower() > 0) {
+                    PersonalityCurrentState = State.INTAKE;
+                } else {
+                    PersonalityCurrentState = State.PERSONALITY_IDLE;
+                }
+                break;
+               /* //if (intake.getPower() > 0) {
+
                     telemetry.addData("intake", CurrentState);
                     telemetry.update();
+                 //   Happy();
                 } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
                     CurrentState = State.MOVE_RIGHT;
                 } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
@@ -886,29 +1686,32 @@ public class MainTeleop extends LinearOpMode {
                     CurrentState = State.MOVE_FORWARD;
                 } else if (gamepad1.left_stick_y > 0) {
                     CurrentState = State.MOVE_BACKWARDS;
-                } else if (RightLauncher.getPower() < 0) {
+                } else if (RightLauncher.getPower() > 0) {
                     CurrentState = State.SHOOT;
+                } else if (gamepad2.y) {
+                    CurrentState = State.MAD;
                 } else {
                     CurrentState = State.IDLE;
                 }
                 break;
-
-            case IDLE:
+*/
+            case PERSONALITY_IDLE:
                 if ((RightLauncher.getPower() == 0) && (intake.getPower() == 0) && (gamepad1.right_stick_x == 0) && (gamepad1.left_stick_y == 0) && (gamepad1.left_stick_x == 0)) {
-                    telemetry.addData("idle", CurrentState);
-                    telemetry.update();
+                    Happy();
                 } else if (gamepad1.right_stick_x > 0 && gamepad1.left_stick_x > 0) {
-                    CurrentState = State.MOVE_RIGHT;
+                    PersonalityCurrentState = State.MOVE_RIGHT;
                 } else if (gamepad1.right_stick_x < 0 && gamepad1.left_stick_x < 0) {
-                    CurrentState = State.MOVE_LEFT;
+                    PersonalityCurrentState = State.MOVE_LEFT;
                 } else if (gamepad1.left_stick_y < 0) {
-                    CurrentState = State.MOVE_FORWARD;
+                    PersonalityCurrentState = State.MOVE_FORWARD;
                 } else if (gamepad1.left_stick_y > 0) {
-                    CurrentState = State.MOVE_BACKWARDS;
-                } else if (RightLauncher.getPower() < 0) {
-                    CurrentState = State.SHOOT;
+                    PersonalityCurrentState = State.MOVE_BACKWARDS;
+                } else if (RightLauncher.getPower() > 0) {
+                    PersonalityCurrentState = State.SHOOT;
+                } else if (gamepad2.y) {
+                    PersonalityCurrentState = State.MAD;
                 } else {
-                    CurrentState = State.INTAKE;
+                    PersonalityCurrentState = State.INTAKE;
                 }
                 break;
 
@@ -1023,6 +1826,7 @@ public class MainTeleop extends LinearOpMode {
         }
         */
 }
+
 
 
 
