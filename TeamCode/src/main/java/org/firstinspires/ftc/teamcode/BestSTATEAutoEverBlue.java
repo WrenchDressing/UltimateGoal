@@ -1,26 +1,27 @@
 package org.firstinspires.ftc.teamcode;
-
 import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.hardware.lynx.LynxModule;
-import com.qualcomm.hardware.modernrobotics.ModernRoboticsI2cRangeSensor;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.NormalizedColorSensor;
+import com.qualcomm.robotcore.hardware.NormalizedRGBA;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
+import org.firstinspires.ftc.robotcore.external.JavaUtil;
 import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
 import org.firstinspires.ftc.robotcore.external.matrices.VectorF;
 import org.firstinspires.ftc.robotcore.external.navigation.Acceleration;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaCurrentGame;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
@@ -38,7 +39,6 @@ import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.XYZ;
 import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.YZX;
 import static org.firstinspires.ftc.robotcore.external.navigation.AxesReference.EXTRINSIC;
 import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection.BACK;
-
 //import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 
 /* TODO
@@ -52,9 +52,10 @@ import static org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocaliz
 - Create exact angular adjustment function
  */
 
-@Autonomous(name = "BestSTATEAutoEver", group = "")
+@Autonomous(name = "BestSTATEAutoEverBlue", group = "")
 
-public class BestSTATEAutoEver extends LinearOpMode {
+public class BestSTATEAutoEverBlue extends LinearOpMode {
+
     private static final String TFOD_MODEL_ASSET = "UltimateGoal.tflite";
     private static final String LABEL_FIRST_ELEMENT = "Quad";
     private static final String LABEL_SECOND_ELEMENT = "Single";
@@ -62,13 +63,15 @@ public class BestSTATEAutoEver extends LinearOpMode {
     private DcMotor LeftLauncher;
     private CRServo Conveyor;
     private DcMotor intake;
+    private DcMotorEx ramp;
     public static final double NEW_P = 20;
     public static final double NEW_I = 15;
     public static final double NEW_D = 0;
     public static final double NEW_F = 5;
-    private DcMotor clarm;
+    private Servo clarm;
     private Servo claw;
-    private Servo ramp;
+    double currentrampvariable;
+    private Servo pusher;
     private static final String VUFORIA_KEY =
             "Ae2mEyz/////AAABmQBmoTE94ki5quwzTT/OlIIeOueUfjuHL/5k1VNWN943meU2RmiXCJ9eX3rUR/2CkwguvbBU45e1SzrbTAwz3ZzJXc7XN1ObKk/7yPHQeulWpyJgpeZx+EqmZW6VE6yG4mNI1mshKI7vOgOtYxqdR8Yf7YwBPd4Ruy3NVK01BwBl1F8V/ndY26skaSlnWqpibCR3XIvVG0LXHTdNn/ftZyAFmCedLgLi1UtNhr2eXZdr6ioikyRYEe7qsWZPlnwVn5DaQoTcgccZV4bR1/PEvDLn7jn1YNwSimTC8glK+5gnNpO+X7BiZa5LcqtYEpvk/QNQda0Fd+wHQDXA8ojeMUagawtkQGJvpPpz9c6p4fad";
     private static final float mmPerInch = 25.4f;
@@ -108,6 +111,12 @@ public class BestSTATEAutoEver extends LinearOpMode {
     double YSpeed;
     double YPositionReset, XPositionReset, XPositionP, YPositionP;
     double XDecelerate;
+    float gain;
+    NormalizedRGBA normalizedColors;
+    int color;
+    float hue;
+    float saturation;
+    float value;
     double TotalEncoderTicks;
     double Accelerate, Decelerate, XAccelerate;
     double mFr, mFl, mBl, mBr;
@@ -129,7 +138,7 @@ public class BestSTATEAutoEver extends LinearOpMode {
     boolean frOverload, flOverload, blOverload, brOverload;
     boolean fullMag;
     private Servo camServo;
-    ModernRoboticsI2cRangeSensor rangeSensor;
+    private ColorSensor rangeSensor_REV_ColorRangeSensor;
     private State CurrentState;
 
     private enum State {
@@ -149,7 +158,7 @@ public class BestSTATEAutoEver extends LinearOpMode {
 
         public void run() {
             while (opModeIsActive()) {
-                PersonalityStateMachine();
+                doPersonality();
             }
         }
     }
@@ -166,12 +175,13 @@ public class BestSTATEAutoEver extends LinearOpMode {
         LeftLauncher = hardwareMap.get(DcMotor.class, "LeftLauncher");
         Conveyor = hardwareMap.get(CRServo.class, "Conveyor");
         intake = hardwareMap.get(DcMotor.class, "intake");
-        clarm = hardwareMap.get(DcMotor.class, "clarm");
+        clarm = hardwareMap.get(Servo.class, "clarm");
         claw = hardwareMap.get(Servo.class, "claw");
-        ramp = hardwareMap.get(Servo.class, "ramp");
+        ramp = hardwareMap.get(DcMotorEx.class, "ramp");
+        pusher = hardwareMap.get(Servo.class, "pusher");
 
         PIDFCoefficients pidOrig = motor_drive_flAsDcMotor.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
-        rangeSensor = hardwareMap.get(ModernRoboticsI2cRangeSensor.class, "rangeSensor");
+        rangeSensor_REV_ColorRangeSensor = hardwareMap.get(ColorSensor.class, "rangeSensor");
         List<LynxModule> allHubs = hardwareMap.getAll(LynxModule.class);
         imu = hardwareMap.get(BNO055IMU.class, "imu");
         Initialization();
@@ -239,9 +249,9 @@ public class BestSTATEAutoEver extends LinearOpMode {
 
         if (tfod != null) {
             tfod.activate();
-            tfod.setZoom(3, 1.78);
+            tfod.setZoom(2.5, 1.78);
         }
-        claw.setPosition(0);
+        claw.setPosition(0.225);
         targetsUltimateGoal.activate();
         X = 1;
         Y = 1;
@@ -255,125 +265,171 @@ public class BestSTATEAutoEver extends LinearOpMode {
         motor_drive_frAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motor_drive_blAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motor_drive_brAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        ringScan();
+        ((NormalizedColorSensor) rangeSensor_REV_ColorRangeSensor).setGain(2);
+        double Extradistance;
         CurrentState = State.IDLE;
         PersonalityStateMachine myThread = new PersonalityStateMachine();
-        myThread.run();
-        waitForStart();
-        GoTov2(0, 25, 0.3, 0, 9, 9, true, true, 0.012, false);
-        //Shooting Powershots Here!
-        if (OneRun == 1) {
-            GoTov2(0, 20, 0.25, 0, 9, 9, true, true, 0.012, false);
+        //     myThread.run();
+        normalizedColors = ((NormalizedColorSensor) rangeSensor_REV_ColorRangeSensor).getNormalizedColors();
+        color = normalizedColors.toColor();
+        pusher.setPosition(0);
+        hue = JavaUtil.colorToHue(color);
+        currentrampvariable = 100;
+        ramp.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        ramp.setPower(-0.2);
+        sleep(500);
+        while (currentrampvariable - ramp.getCurrentPosition() > 0 || currentrampvariable - ramp.getCurrentPosition() < 0) {
+            ramp.setPower(-0.2);
+            sleep(50);
+            currentrampvariable = ramp.getCurrentPosition();
         }
-        if (NoneRun == 1) {
-            clarm.setTargetPosition(800);
-            clarm.setPower(0.4);
-            IMUTurn(38);
-            GoTov2(0, 33, 0.4, 45, 5, 5, true, true, 0.004, false);
-            IMUTurn(130);
-            clarm.setTargetPosition(900);
-            clarm.setPower(0.3);
+        ramp.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        ramp.setTargetPosition(0);
+        ramp.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        ramp.setTargetPositionTolerance(8);
+        ringScan();
+        waitForStart();
+        GoTov2(0, 4, 0.3, 0, 9, 9, true, false, 0.012, true);
+        clarm.setPosition(0.3);
+        LeftLauncher.setPower(0.2);
+        RightLauncher.setPower(-0.2);
+        ramp.setTargetPosition(764);
+        ramp.setPower(0.4);
+        GoTov2(0, 19, .3, 0, 9, 9, false, true, 0.012, true);
+        MecanumFunction(0, 0, 0);
+        ShootPowershots();
+        pusher.setPosition(0);
+        sleep(250);
+
+        //outline of run
+        if (OneRun == 1) {
+            IMUTurn(16);
+            intakeFunction(8, 200, -16, 0.12);
+            RampMove(1000, 855);
+            LeftLauncher.setPower(-0.4);
+            RightLauncher.setPower(0.8);
+            pusher.setPosition(0.41);
+            GoTov2(0, 26, 0.6, 0, 5, 5, true, true, 0.008, true);
+            MecanumFunction(0, 0, 0);
+            pusher.setPosition(0.88);
+            sleep(1200);
+            pusher.setPosition(0);
+            sleep(200);
+            LeftLauncher.setPower(0);
+            RightLauncher.setPower(0);
+            ramp.setTargetPosition(0);
+            ramp.setPower(-0.5);
+
+            IMUTurn(45);
+            GoTov2(0, 35, 0.6, 45, 5, 5, true, true, 0.012, true);
+            clarm.setPosition(0.8);
+            sleep(200);
             claw.setPosition(1);
-            clarm.setTargetPosition(600);
-            clarm.setPower(-0.6);
-            IMUTurn(0);
-            GoTov2(0, -13.25, 0.4, 0, 5, 5, true, true, 0.012, true);
-            IMUTurn(-55);
-            clarm.setTargetPosition(960);
-            clarm.setPower(0.3);
+            sleep(400);
+            clarm.setPosition(0.3);
+            GoTov2(0, -60, 0.6, 45, 5, 5, true, true, 0.012, true);
+            IMUTurn(-90);
+            clarm.setPosition(0.6);
+            MecanumFunction(0, 0, 0);
+            claw.setPosition(0);
+            sleep(400);
+            clarm.setPosition(0.3);
+            MecanumFunction(0, 0, 0);
+            sleep(250);
+            IMUTurn(45);
+            GoTov2(0, 60, 0.7, 45, 7, 7, true, true, 0.006, false);
+            clarm.setPosition(0.8);
+            sleep(1000);
+            claw.setPosition(1);
+            sleep(250);
+            GoTov2(0, -10, 0.7, 45, 7, 7, true, true, 0.006, false);
+        }
+
+        //outline of run
+        if (NoneRun == 1) {
+            clarm.setPosition(0.5);
+            IMUTurn(65);
+            GoTov2(0, 36, 0.4, 0, 5, 5, true, true, 0.004, false);
+            IMUTurn(90);
+            ramp.setTargetPosition(0);
+            ramp.setPower(-0.5);
+            clarm.setPosition(0.8);
+            claw.setPosition(1);
+            sleep(1000);
+            clarm.setPosition(0.3);
+            GoTov2(0, -48, 0.4, 20, 5, 5, true, true, 0.012, true);
+            IMUTurn(-160);
+            GoTov2(0, 30, 0.4, 20, 5, 5, true, true, 0.012, true);
+            IMUTurn(-90);
+            clarm.setPosition(0.8);
+            GoTov2(7, 0, 0.4, 90, 5, 5, true, true, 0.012, true);
+            MecanumFunction(0, 0, 0);
             sleep(500);
             claw.setPosition(0);
             sleep(500);
-            clarm.setTargetPosition(450);
-            clarm.setPower(-0.6);
+            clarm.setPosition(0.3);
+            MecanumFunction(0, 0, 0);
             sleep(500);
+            IMUTurn(180);
+            GoTov2(0, -50, 0.4, 15, 4, 4f, true, true, 0.004, false);
+            clarm.setPosition(0.8);
+            sleep(1000);
+            claw.setPosition(1);
+            sleep(250);
         }
 
-
-
-/*
-        GoTov2(0,24, 0.25, 0, 6,6,true,false,0.012,true);
-        clarm.setTargetPosition(500);
-        clarm.setPower(0.5);
-        GoTov2(0,24, 0.25, 0, 6,6,false,false,0.012,true);
-        clarm.setTargetPosition(0);
-        clarm.setPower(-0.5);
-        GoTov2(0,24, 0.25, 0, 6,6,false,true,0.012,true);
-        GoTov2(0,-24, 0.25, 0, 6,6,true,false,0.012,true);
-        clarm.setTargetPosition(500);
-        clarm.setPower(0.5);
-        GoTov2(0,-24, 0.25, 0, 6,6,false,false,0.012,true);
-        clarm.setTargetPosition(0);
-        clarm.setPower(-0.5);
-        GoTov2(0,-24, 0.25, 0, 6,6,false,true,0.012,true);
-        sleep(1000);
-*/
-
-
-  /*wallTargetTracking(vuforia, allTrackables, 90, 0, 58, 0, 10, 2, 1, 3, false, 0);
- /*
-        AngularAdjustment(-6.1, 0.02);
-
-        AngularAdjustment(-3.5, 0.028);
-
-        AngularAdjustment(1.15, 0.028);
-
-        GoTo(0, 12,.2, 0, 14, 0, true, true, 0.012, true);
+        //not adjusted
         if (QuadRun == 1) {
-            intakeFunction(16, 1300, 0, true, .03);
-            intakeFunction(6, 1300, 0, true, .03);
+            pusher.setPosition(0);
+            ramp.setTargetPosition(0);
+            ramp.setPower(-0.7);
+            intake.setPower(1);
+            LeftLauncher.setPower(0.2);
+            RightLauncher.setPower(-0.2);
+            sleep(250);
+            GoTov2(0, 7, 0.6, -13, 3, 3, false, true, 0.012, true);
+            ResetTracker();
+            MecanumFunction(0.09, 0, 0);
+            sleep(3300);
+            MecanumFunction(0, 0, 0);
+            intake.setPower(-1);
+            sleep(250);
+            ramp.setTargetPosition(835);
+            ramp.setPower(0.7);
+            sleep(1000);
+            Extradistance = Yposition;
+            AngularAdjustment(-1, 0.012);
+            SpinUp();
+            sleep(1000);
+            pusher.setPosition(0.9);
+            sleep(2000);
+            pusher.setPosition(0);
+            sleep(500);
+            ResetTracker();
+            intake.setPower(0);
+            ramp.setTargetPosition(0);
+            ramp.setPower(-0.4);
+            LeftLauncher.setPower(0);
+            RightLauncher.setPower(0);
+            clarm.setPosition(0.3);
+            GoTov2(0, 63 - Extradistance, 1, -4, 6, 6, true, true, 0.012, true);
+            clarm.setPosition(0.8);
+            claw.setPosition(1);
+            sleep(500);
+            clarm.setPosition(0.4);
+            GoTov2(0, -38, 1, 8, 6, 6, true, true, 0.012, true);
         }
-/*
-        GoTo(0, 10,.2, 0, 14, 0, true, false, 0.012, true);
-        clarm.setTargetPosition(650);
-        clarm.setPower(0.3);
-        GoTo(10,10,0.2,0,14,0, false,true,0.012,true);
-        GoTo(-10,-10,0.2,0,14,0, true,false,0.012,true);
-        clarm.setTargetPosition(0);
-        clarm.setPower(-0.3);
-        GoTo(0, -10,.2, 0, 14, 0, false, true, 0.012, true);
-   /* GoTo(20, 20,.2, 0, 14, 0, true, true, 0.012, true);
-        GoTo(-20, -20,.2, 0, 14, 0, true, true, 0.012, true);
-        GoTo(-20, 20,.2, 0, 14, 0, true, true, 0.012, true);
-        GoTo(20, -20,.2, 0, 14, 0, true, true, 0.012, true);
-        GoTo(-20, -20,.2, 0, 14, 0, true, true, 0.012, true);
-        GoTo(20, 20,.2, 0, 14, 0, true, true, 0.012, true);
-        GoTo(20, -20,.2, 0, 14, 0, true, true, 0.012, true);
-        GoTo(-20, 20,.2, 0, 14, 0, true, true, 0.012, true);
-*/
-
-
-
-
-    /*
-    GoTo(0, 40, .3, 0, 14, 0, false, true, 0.012, true);
-IMUTurn(175);
-*/
-
-    /*
-    GoTo(20, -20, .3, 0, 14, 0, true, true, 0.012, true);
-        GoTo(20, 20, .3, 0, 14, 0, true, true, 0.012,true);
-        GoTo(0, -20, .3, 0, 14, 0, true, true, 0.012, true);
-        GoTo(-20, 20, .3, 0, 14, 0, true, true, 0.012, true);
-        GoTo(-20, -20, .3, 0, 14, 0, true, true, 0.012, true);
-        GoTo(0, 20, .3, 0, 14, 0, true, true, 0.012,true);
-
-*/
-
-        /*while(Xposition <= 24 || Yposition <= 48){
-    if (Xposition >= 24){
-        X = 0;
-    }
-    if (Yposition >= 48){
-        Y = 0;
-    }
-    MecanumFunction(0.1414 * Y,0.1 * X,0);
-    DistanceTracker();
-
-}
-
-         */
         MecanumFunction(0, 0, 0);
+    }
+
+    private void RampMove(double velocity, int position) {
+        ramp.setTargetPosition(position);
+        ((DcMotorEx) ramp).setVelocity(velocity);
+        while (ramp.isBusy()) {
+            telemetry.addData("fart", 123);
+            telemetry.update();
+
+        }
     }
 
     private void DistanceTracker() {
@@ -390,6 +446,12 @@ IMUTurn(175);
         Yposition = (((((motor_drive_blAsDcMotor.getCurrentPosition() + motor_drive_brAsDcMotor.getCurrentPosition() + motor_drive_flAsDcMotor.getCurrentPosition() + motor_drive_frAsDcMotor.getCurrentPosition()) * 0.25) * 0.00208333333) * 12.8) - YPositionReset);//((((motor_drive_brAsDcMotor.getCurrentPosition() + motor_drive_blAsDcMotor.getCurrentPosition() + motor_drive_flAsDcMotor.getCurrentPosition() + motor_drive_frAsDcMotor.getCurrentPosition()) / 4) / 480) * 12.566);
         Xposition = ((((motor_drive_flAsDcMotor.getCurrentPosition() - motor_drive_blAsDcMotor.getCurrentPosition()) * 0.00208333333) * 11.5 * .5) - (XPositionReset));
 
+    }
+
+    private void SpinUp() {
+        RightLauncher.setPower(0.65);
+        sleep(150);
+        LeftLauncher.setPower(-0.32);
     }
 
     private void ResetTracker() {
@@ -537,6 +599,10 @@ IMUTurn(175);
 
         } else if (XDistance == 0) {
             while (Math.abs(Yposition) <= Math.abs(YDistance)) {
+                if (isStopRequested()) {
+                    MecanumFunction(0, 0, 0);
+                    break;
+                }
                 telemetry.addData("YPosition", Yposition);
                 telemetry.update();
                 // telemetry.addData("Speed", Math.max(Math.min(Speed * ((Math.abs(Yposition) * 0.006) / Accelerate) - 0/*(Decelerate * (1 / (Math.abs(YDistance) - Math.abs(Yposition))))*/, 0.0001), Speed * 0.707106781 * Math.abs((YDistance / XDistance)) * Y));
@@ -555,53 +621,56 @@ IMUTurn(175);
     }
 
 
-    private void intakeFunction(double distance, long sleep, double Angle, boolean Beltafter, double speed) {
-        ramp.setPosition(0.8);
-        sleep(300);
-        intake.setPower(-1);
-        Conveyor.setPower(-1);
-        GoTo(0, distance, speed, Angle, 14, 0, true, true, 0.012, true);
-
+    private void intakeFunction(double distance, long sleep, double Angle, double speed) {
+        ResetTracker();
+        ramp.setTargetPosition(0);
+        ramp.setPower(-0.4);
         intake.setPower(1);
-        if (Beltafter == false) {
-            Conveyor.setPower(0);
-        }
+        LeftLauncher.setPower(0.1);
+        RightLauncher.setPower(-0.1);
+        GoTo(0, distance, speed, Angle, 3, 3, true, true, 0.012, true);
+        intake.setPower(-1);
         sleep(sleep);
         intake.setPower(0);
-        ramp.setPosition(0);
     }
 
-    private void MagFull(double Yl, double Xl, double Timeout, double Distance, double MaintainAngle, double IMUGain) {
-        ramp.setPosition(0.8);
-
+    private void MagFull(double Yl, double Xl, double Timeout, double MaintainAngle, double IMUGain) {
+        pusher.setPosition(0);
+        sleep(500);
+        ramp.setTargetPosition(0);
+        ramp.setPower(-0.5);
+        sleep(100);
         ElapsedTime MagTimer = new ElapsedTime();
         while (MagTimer.seconds() < Timeout) {
+            normalizedColors = ((NormalizedColorSensor) rangeSensor_REV_ColorRangeSensor).getNormalizedColors();
+            telemetry.addData("Hue", Double.parseDouble(JavaUtil.formatNumber(normalizedColors.red, 3)));
+            telemetry.update();
             angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
             CurrentHeading = angles.firstAngle;
             intake.setPower(1);
-            LeftLauncher.setPower(-0.75);
-            RightLauncher.setPower(-0.75);
-            if (rangeSensor.getDistance(DistanceUnit.CM) > Distance) {
+            LeftLauncher.setPower(0.1);
+            RightLauncher.setPower(-0.1);
+            if (Double.parseDouble(JavaUtil.formatNumber(normalizedColors.red, 3)) < 0.01) {
                 MagTimer.reset();
             }
             MecanumFunction(Yl, Xl, (-MaintainAngle + CurrentHeading) * IMUGain);
         }
-        LeftLauncher.setPower(0);
-        RightLauncher.setPower(0);
         MecanumFunction(0, 0, 0);
         intake.setPower(-1);
         sleep(250);
-        ramp.setPosition(0);
+        ramp.setTargetPosition(805);
+        ramp.setPower(0.7);
+        sleep(1000);
     }
 
     private void AngularAdjustment(double targetangle, double IMUgain) {
         ElapsedTime TimerD = new ElapsedTime();
         TimerD.reset();
-        while ((TimerD.milliseconds() < 350)) {
+        while ((TimerD.milliseconds() < 1000)) {
 
             // ANDREW: Consider the use of BulkCaching here since it is expensive to read all the motor positions if all you need is the imu angle
             BulkCaching();
-            if (((-targetangle + CurrentHeading) >= 0.07 && (-targetangle + CurrentHeading) <= -0.07)) {
+            if (((-targetangle + CurrentHeading) >= 0.05 && (-targetangle + CurrentHeading) <= -0.05)) {
                 TimerD.reset();
             }
             MecanumFunction(0, 0, IMUgain * (-targetangle + CurrentHeading));
@@ -755,14 +824,12 @@ IMUTurn(175);
         int tfodMonitorViewId = hardwareMap.appContext.getResources().getIdentifier(
                 "tfodMonitorViewId", "id", hardwareMap.appContext.getPackageName());
         TFObjectDetector.Parameters tfodParameters = new TFObjectDetector.Parameters(tfodMonitorViewId);
-        tfodParameters.minResultConfidence = 0.6f;
+        tfodParameters.minResultConfidence = 0.70f;
         tfod = ClassFactory.getInstance().createTFObjectDetector(tfodParameters, vuforia);
         tfod.loadModelFromAsset(TFOD_MODEL_ASSET, LABEL_FIRST_ELEMENT, LABEL_SECOND_ELEMENT);
 
         // webcamName = hardwareMap.get(WebcamName.class, "Webcam 1");
-        clarm.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        clarm.setTargetPosition(0);
-        clarm.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
         CurrentHeading = angles.firstAngle;
         motor_drive_brAsDcMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         motor_drive_frAsDcMotor.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -776,6 +843,9 @@ IMUTurn(175);
         motor_drive_frAsDcMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         motor_drive_blAsDcMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         motor_drive_brAsDcMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        ramp.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        ramp.setTargetPosition(0);
+        ramp.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         RightLauncher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         LeftLauncher.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         RightLauncher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -786,10 +856,13 @@ IMUTurn(175);
         motor_drive_brAsDcMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         PIDFCoefficients pidNew = new PIDFCoefficients(NEW_P, NEW_I, NEW_D, NEW_F);
         PIDFCoefficients brpidNew = new PIDFCoefficients(20, 15, 0, 0);
+        PIDFCoefficients rampPID = new PIDFCoefficients(12, 8f, 0, 0);
         motor_drive_flAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
         motor_drive_frAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
         motor_drive_blAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
         motor_drive_brAsDcMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidNew);
+        ramp.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, rampPID);
+        ramp.setPositionPIDFCoefficients(8);
         VuforiaTrackables targetsUltimateGoal = this.vuforia.loadTrackablesFromAsset("UltimateGoal");
         VuforiaTrackable blueTowerGoalTarget = targetsUltimateGoal.get(0);
         blueTowerGoalTarget.setName("Blue Tower Goal Target");
@@ -928,6 +1001,38 @@ IMUTurn(175);
         Conveyor.setPower(0);
 
     }
+
+    private void ShootPowershots() {
+
+        clarm.setPosition(0.3);
+
+        LeftLauncher.setPower(0.2);
+        RightLauncher.setPower(-0.2);
+        RampMove(800, 820);
+        RightLauncher.setPower(0.65);
+        sleep(150);
+        LeftLauncher.setPower(-0.30);
+        sleep(450);
+        AngularAdjustment(19.5, 0.011);
+        sleep(150);
+        pusher.setPosition(0.41);
+        RightLauncher.setPower(0.65);
+        LeftLauncher.setPower(-0.32);
+        sleep(570);
+        AngularAdjustment(16, .011);
+        pusher.setPosition(0.775);
+        sleep(570);
+        RightLauncher.setPower(0.65);
+        LeftLauncher.setPower(-0.325);
+        AngularAdjustment(11.5, 0.011);
+        pusher.setPosition(0.98);
+        sleep(570);
+        LeftLauncher.setPower(0);
+        RightLauncher.setPower(0);
+        pusher.setPosition(0);
+        AngularAdjustment(13, 0.013);
+    }
+
 
     private void initTfod() {
         int tfodMonitorViewId = hardwareMap.appContext.getResources().getIdentifier(
@@ -1449,13 +1554,13 @@ Liam:
 
     }
 
-    private void PersonalityStateMachine() {
+    private void doPersonality() {
         switch (CurrentState) {
             case MOVE_RIGHT:
-                if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                if (gamepad1.right_stick_x > 0 || Xposition > 0) {
                     telemetry.addData("strafe and turn right", CurrentState);
                     telemetry.update();
-                } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                } else if (gamepad1.right_stick_x < 0 || Xposition < 0) {
                     CurrentState = State.MOVE_LEFT;
                 } else if (Yposition > 0) {
                     CurrentState = State.MOVE_FORWARD;
@@ -1471,10 +1576,10 @@ Liam:
                 break;
 
             case MOVE_LEFT:
-                if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                if (gamepad1.right_stick_x < 0 || Xposition < 0) {
                     telemetry.addData("strafe or turn", CurrentState);
                     telemetry.update();
-                } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                } else if (gamepad1.right_stick_x > 0 || Xposition > 0) {
                     CurrentState = State.MOVE_RIGHT;
                 } else if (Yposition > 0) {
                     CurrentState = State.MOVE_FORWARD;
@@ -1493,9 +1598,9 @@ Liam:
                 if (Yposition > 0) {
                     telemetry.addData("move forward", CurrentState);
                     telemetry.update();
-                } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                } else if (gamepad1.right_stick_x > 0 || Xposition > 0) {
                     CurrentState = State.MOVE_RIGHT;
-                } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                } else if (gamepad1.right_stick_x < 0 || Xposition < 0) {
                     CurrentState = State.MOVE_LEFT;
                 } else if (Yposition < 0) {
                     CurrentState = State.MOVE_BACKWARDS;
@@ -1512,9 +1617,9 @@ Liam:
                 if (Yposition < 0) {
                     telemetry.addData("move backwards", CurrentState);
                     telemetry.update();
-                } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                } else if (gamepad1.right_stick_x > 0 || Xposition > 0) {
                     CurrentState = State.MOVE_RIGHT;
-                } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                } else if (gamepad1.right_stick_x < 0 || Xposition < 0) {
                     CurrentState = State.MOVE_LEFT;
                 } else if (Yposition > 0) {
                     CurrentState = State.MOVE_FORWARD;
@@ -1531,9 +1636,9 @@ Liam:
                 if (RightLauncher.getPower() < 0) {
                     telemetry.addData("shoot", CurrentState);
                     telemetry.update();
-                } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                } else if (gamepad1.right_stick_x > 0 || Xposition > 0) {
                     CurrentState = State.MOVE_RIGHT;
-                } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                } else if (gamepad1.right_stick_x < 0 || Xposition < 0) {
                     CurrentState = State.MOVE_LEFT;
                 } else if (Yposition > 0) {
                     CurrentState = State.MOVE_FORWARD;
@@ -1550,9 +1655,9 @@ Liam:
                 if (intake.getPower() > 0) {
                     telemetry.addData("intake", CurrentState);
                     telemetry.update();
-                } else if (gamepad1.right_stick_x > 0 || gamepad1.left_stick_x > 0) {
+                } else if (gamepad1.right_stick_x > 0 || Xposition > 0) {
                     CurrentState = State.MOVE_RIGHT;
-                } else if (gamepad1.right_stick_x < 0 || gamepad1.left_stick_x < 0) {
+                } else if (gamepad1.right_stick_x < 0 || Xposition < 0) {
                     CurrentState = State.MOVE_LEFT;
                 } else if (Yposition > 0) {
                     CurrentState = State.MOVE_FORWARD;
@@ -1567,11 +1672,10 @@ Liam:
 
             case IDLE:
                 if ((RightLauncher.getPower() == 0) && (intake.getPower() == 0) && (gamepad1.right_stick_x == 0) && (Yposition == 0) && (gamepad1.left_stick_x == 0)) {
-                    telemetry.addData("idle", CurrentState);
-                    telemetry.update();
-                } else if (gamepad1.right_stick_x > 0 && gamepad1.left_stick_x > 0) {
+                    //telemetry for idle >>
+                } else if (gamepad1.right_stick_x > 0 && Xposition > 0) {
                     CurrentState = State.MOVE_RIGHT;
-                } else if (gamepad1.right_stick_x < 0 && gamepad1.left_stick_x < 0) {
+                } else if (gamepad1.right_stick_x < 0 && Xposition < 0) {
                     CurrentState = State.MOVE_LEFT;
                 } else if (Yposition > 0) {
                     CurrentState = State.MOVE_FORWARD;
@@ -1587,4 +1691,3 @@ Liam:
         }
     }
 }
-
